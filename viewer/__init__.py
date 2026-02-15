@@ -249,6 +249,44 @@ def load_settings():
     )
 
 
+def _is_cctv_url(uri):
+    """Check if URL is a CCTV stream from Fleet Manager."""
+    return '/cctv/' in uri
+
+
+def _request_cctv_start(uri):
+    """Ask FM to start CCTV stream before showing. Returns True if ready."""
+    import requests as req
+    try:
+        parts = uri.rstrip('/').split('/cctv/')
+        if len(parts) != 2:
+            return False
+        base_url = parts[0]
+        config_id = parts[1].rstrip('/')
+        resp = req.post(
+            f'{base_url}/api/cctv/{config_id}/request-start/',
+            timeout=10,
+        )
+        if resp.status_code != 200:
+            logging.warning(
+                'CCTV request-start returned %s', resp.status_code
+            )
+            return False
+        snapshot_url = f'{base_url}/media/cctv/{config_id}/snapshot.jpg'
+        for _ in range(10):
+            sleep(1)
+            try:
+                r = req.head(snapshot_url, timeout=3)
+                if r.status_code == 200:
+                    return True
+            except Exception:
+                pass
+        return True  # proceed anyway after timeout
+    except Exception:
+        logging.warning('CCTV request-start failed for %s', uri, exc_info=True)
+        return False
+
+
 def asset_loop(scheduler):
     asset = scheduler.get_next_asset()
 
@@ -280,6 +318,15 @@ def asset_loop(scheduler):
         if 'image' in mime:
             view_image(uri)
         elif 'web' in mime:
+            if _is_cctv_url(uri):
+                if not _request_cctv_start(uri):
+                    logging.info(
+                        'CCTV stream %s unavailable, skipping', name
+                    )
+                    skip_event = get_skip_event()
+                    skip_event.clear()
+                    skip_event.wait(timeout=0.5)
+                    return
             view_webpage(uri)
         elif 'video' or 'streaming' in mime:
             view_video(uri, asset['duration'])
