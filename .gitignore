@@ -1,0 +1,64 @@
+*.py[co]
+.idea/
+
+# Packages
+*.egg
+*.egg-info
+dist
+build
+eggs
+parts
+var
+sdist
+develop-eggs
+.installed.cfg
+
+# Installer logs
+pip-log.txt
+
+# Unit test / coverage reports
+.coverage
+.tox
+
+#Translations
+*.mo
+
+#Mr Developer
+.mr.developer.cfg
+
+# VIM
+*.swp
+
+.DS_Store
+.fseventsd/*
+.Spotlight-V100/*
+.sass-cache/*
+venv
+node_modules
+*.retry
+.env
+.balena/balena.yml
+
+# Ignore all non-template based files
+docker/Dockerfile.base
+docker/Dockerfile.nginx
+docker/Dockerfile.server
+docker/Dockerfile.websocket
+docker/Dockerfile.celery
+docker/Dockerfile.redis
+docker/Dockerfile.viewer
+docker/Dockerfile.wifi-connect
+docker/Dockerfile.test
+docker-compose.yml
+
+balena-deploy/
+db.sqlite3
+
+# Django
+staticfiles/
+
+# ESLint
+.eslintcache
+
+# Linting
+.coffeelint.json

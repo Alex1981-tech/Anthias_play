@@ -1,0 +1,34 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "allowJs": true,
+    "esModuleInterop": true,
+    "noImplicitAny": true,
+    "strict": true,
+    "module": "esnext",
+    "moduleResolution": "node",
+    "jsx": "react-jsx",
+    "resolveJsonModule": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/components/*": ["static/src/components/*"],
+      "@/constants": ["static/src/constants.ts"],
+      "@/hooks/*": ["static/src/hooks/*"],
+      "@/i18n": ["static/src/i18n.ts"],
+      "@/locales/*": ["static/src/locales/*"],
+      "@/store/*": ["static/src/store/*"],
+      "@/sass/*": ["static/sass/*"],
+      "@/types": ["static/src/types.ts"],
+      "@/tests/*": ["static/src/tests/*"]
+    }
+  },
+  "include": [
+    "static/src/**/*"
+  ],
+  "exclude": [
+    "node_modules",
+    "static/dist",
+    "static/spec"
+  ]
+}
