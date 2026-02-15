@@ -25,9 +25,6 @@ If no schedule slots are configured, the player automatically falls back to Clas
 
 ## Screenshots
 
-### Schedule Overview (Classic Mode)
-![Home](screenshots/home.png)
-
 ### Time Slots (Schedule Mode)
 ![Time Slots](screenshots/time_slots.png)
 
