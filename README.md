@@ -5,22 +5,42 @@ Custom build of [Anthias](https://github.com/Screenly/Anthias) digital signage p
 > **This is NOT the official Anthias project.**
 > Original code and documentation: [github.com/Screenly/Anthias](https://github.com/Screenly/Anthias)
 
-## What's different
+## Playback Modes
 
-This fork adds the following features on top of the original Anthias:
+The player supports **two playback modes** that work together:
 
-### Schedule Slots Engine
-Flexible playback scheduling with three slot types:
-- **Default** — plays when nothing else is scheduled
-- **Time** — activates during specific hours on selected days of the week
-- **Event** — one-time or recurring events with highest priority
+### Classic Mode (original behavior)
+The standard Anthias approach — all active assets play in a loop based on their start/end dates and duration. This is the default behavior from the original project and works out of the box with no additional setup.
 
-Priority order: event > time > default. Events interrupt current playback via deadline timer.
+### Schedule Slots Mode (new)
+A flexible scheduling engine with three slot types and priority system:
+
+| Slot Type | Priority | Description |
+|-----------|----------|-------------|
+| **Default** | Low | Plays when nothing else is scheduled |
+| **Time** | Medium | Activates during specific hours on selected days |
+| **Event** | High | One-time or recurring events, interrupts other playback |
+
+If no schedule slots are configured, the player automatically falls back to Classic Mode.
+
+## Screenshots
+
+### Schedule Overview (Classic Mode)
+![Home](screenshots/home.png)
+
+### Time Slots (Schedule Mode)
+![Time Slots](screenshots/time_slots.png)
+
+### Schedule Slots Detail
+![Schedule](screenshots/schedule.png)
+
+### Settings
+![Settings](screenshots/setings.png)
+
+## Other Features
 
 ### Multi-language UI
-Interface available in 5 languages:
-- English, Ukrainian, French, German, Polish
-
+Interface available in 5 languages: English, Ukrainian, French, German, Polish.
 Language picker in Settings.
 
 ### HDMI Audio Auto-Detection
@@ -36,7 +56,7 @@ Tracks what content played and when in `viewlog.db`. Used by Fleet Manager for p
 `bin/setup-silent-boot.sh` — disables rainbow splash, kernel text, cursor; shows a standby image on boot via `fbi`.
 
 ### Display Power Schedule
-UI in Settings to configure automatic display on/off times.
+Per-day on/off schedule for the TV display via HDMI-CEC. Raspberry Pi stays running. Configurable in Settings.
 
 ## Compatibility
 
