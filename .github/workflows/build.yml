@@ -12,7 +12,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       packages: write
 
     strategy:
@@ -23,6 +23,12 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Read VERSION
+        id: version
+        run: |
+          VERSION=$(cat VERSION | tr -d '[:space:]')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Set image prefix
         id: prefix
@@ -57,11 +63,13 @@ jobs:
           tags: |
             ${{ steps.prefix.outputs.value }}-${{ matrix.service }}:latest-pi4-64
             ${{ steps.prefix.outputs.value }}-${{ matrix.service }}:${{ steps.meta.outputs.short_sha }}-pi4-64
+            ${{ steps.prefix.outputs.value }}-${{ matrix.service }}:v${{ steps.version.outputs.version }}-pi4-64
           build-args: |
             GIT_HASH=${{ github.sha }}
             GIT_SHORT_HASH=${{ steps.meta.outputs.short_sha }}
             GIT_BRANCH=${{ github.ref_name }}
             DEVICE_TYPE=pi4
+            APP_VERSION=${{ steps.version.outputs.version }}
           cache-from: type=gha,scope=${{ matrix.service }}
           cache-to: type=gha,scope=${{ matrix.service }},mode=max
 
@@ -74,6 +82,12 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Read VERSION
+        id: version
+        run: |
+          VERSION=$(cat VERSION | tr -d '[:space:]')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Set image prefix
         id: prefix
@@ -109,10 +123,60 @@ jobs:
           tags: |
             ${{ steps.prefix.outputs.value }}-viewer:latest-pi4-64
             ${{ steps.prefix.outputs.value }}-viewer:${{ steps.meta.outputs.short_sha }}-pi4-64
+            ${{ steps.prefix.outputs.value }}-viewer:v${{ steps.version.outputs.version }}-pi4-64
           build-args: |
             GIT_HASH=${{ github.sha }}
             GIT_SHORT_HASH=${{ steps.meta.outputs.short_sha }}
             GIT_BRANCH=${{ github.ref_name }}
             DEVICE_TYPE=pi4
+            APP_VERSION=${{ steps.version.outputs.version }}
           cache-from: type=gha,scope=viewer
           cache-to: type=gha,scope=viewer,mode=max
+
+  release:
+    needs: [build, build-viewer]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Read VERSION
+        id: version
+        run: |
+          VERSION=$(cat VERSION | tr -d '[:space:]')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Extract metadata
+        id: meta
+        run: |
+          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+          echo "short_sha=$SHORT_SHA" >> $GITHUB_OUTPUT
+
+      - name: Create or update release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          name: v${{ steps.version.outputs.version }}
+          body: |
+            ## Anthias Player v${{ steps.version.outputs.version }}
+
+            **Commit:** `${{ steps.meta.outputs.short_sha }}` (${{ github.sha }})
+            **Built:** ${{ github.event.head_commit.timestamp }}
+
+            ### Docker Images (Pi4 ARM64)
+            ```
+            ghcr.io/${{ github.repository_owner }}/anthias-server:v${{ steps.version.outputs.version }}-pi4-64
+            ghcr.io/${{ github.repository_owner }}/anthias-nginx:v${{ steps.version.outputs.version }}-pi4-64
+            ghcr.io/${{ github.repository_owner }}/anthias-viewer:v${{ steps.version.outputs.version }}-pi4-64
+            ghcr.io/${{ github.repository_owner }}/anthias-celery:v${{ steps.version.outputs.version }}-pi4-64
+            ghcr.io/${{ github.repository_owner }}/anthias-websocket:v${{ steps.version.outputs.version }}-pi4-64
+            ghcr.io/${{ github.repository_owner }}/anthias-redis:v${{ steps.version.outputs.version }}-pi4-64
+            ```
+          draft: false
+          prerelease: false
+          make_latest: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

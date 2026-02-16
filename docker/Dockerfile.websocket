@@ -36,8 +36,10 @@ COPY . /usr/src/app/
 ARG GIT_HASH=unknown
 ARG GIT_SHORT_HASH=unknown
 ARG GIT_BRANCH=main
+ARG APP_VERSION=dev
 ENV GIT_HASH=${GIT_HASH}
 ENV GIT_SHORT_HASH=${GIT_SHORT_HASH}
 ENV GIT_BRANCH=${GIT_BRANCH}
+ENV APP_VERSION=${APP_VERSION}
 
 CMD ["python", "websocket_server_layer.py"]

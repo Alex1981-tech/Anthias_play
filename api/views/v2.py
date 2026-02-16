@@ -399,13 +399,14 @@ class DeviceSettingsViewV2(APIView):
 
 class InfoViewV2(InfoViewMixin):
     def get_anthias_version(self):
-        git_branch = diagnostics.get_git_branch()
-        git_short_hash = diagnostics.get_git_short_hash()
+        app_version = getenv('APP_VERSION', '')
+        git_short_hash = diagnostics.get_git_short_hash() or 'unknown'
 
-        return '{}@{}'.format(
-            git_branch,
-            git_short_hash,
-        )
+        if app_version and app_version != 'dev':
+            return 'v{}@{}'.format(app_version, git_short_hash)
+
+        git_branch = diagnostics.get_git_branch() or 'dev'
+        return '{}@{}'.format(git_branch, git_short_hash)
 
     def get_device_model(self):
         device_model = device_helper.parse_cpu_info().get('model')
@@ -850,6 +851,28 @@ class IntegrationsViewV2(APIView):
         serializer = self.serializer_class(data=data)
         serializer.is_valid(raise_exception=True)
         return Response(serializer.data)
+
+
+class UpdateViewV2(APIView):
+    """POST /api/v2/update — trigger Watchtower to pull and restart containers."""
+
+    @authorized
+    def post(self, request):
+        import requests as req
+
+        token = getenv('WATCHTOWER_TOKEN', 'anthias-player-update')
+        try:
+            resp = req.post(
+                'http://watchtower:8080/v1/update',
+                headers={'Authorization': f'Bearer {token}'},
+                timeout=10,
+            )
+            return Response({'success': resp.status_code == 200})
+        except Exception as e:
+            return Response(
+                {'success': False, 'error': str(e)},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
 
 
 class ViewLogViewV2(APIView):

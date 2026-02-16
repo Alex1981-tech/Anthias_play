@@ -9,9 +9,11 @@ RUN \
 ARG GIT_HASH=unknown
 ARG GIT_SHORT_HASH=unknown
 ARG GIT_BRANCH=main
+ARG APP_VERSION=dev
 ENV GIT_HASH=${GIT_HASH}
 ENV GIT_SHORT_HASH=${GIT_SHORT_HASH}
 ENV GIT_BRANCH=${GIT_BRANCH}
+ENV APP_VERSION=${APP_VERSION}
 
 RUN sed -i 's/^bind.*/bind 0.0.0.0/g' /etc/redis/redis.conf
 RUN sed -i 's/^protected-mode.*/protected-mode no/g' /etc/redis/redis.conf

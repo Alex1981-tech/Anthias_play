@@ -23,6 +23,7 @@ from api.views.v2 import (
     RecoverViewV2,
     ScreenshotViewV2,
     ShutdownViewV2,
+    UpdateViewV2,
     ViewLogViewV2,
 )
 
@@ -74,6 +75,11 @@ def get_url_patterns():
             'v2/screenshot',
             ScreenshotViewV2.as_view(),
             name='screenshot_v2',
+        ),
+        path(
+            'v2/update',
+            UpdateViewV2.as_view(),
+            name='update_v2',
         ),
         path(
             'v2/viewlog',
