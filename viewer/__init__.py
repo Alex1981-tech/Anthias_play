@@ -193,8 +193,7 @@ def view_video(uri, duration):
     media_player.set_asset(uri, duration)
     media_player.play()
 
-    # Show black page behind VLC so transitions don't flash white
-    view_image('data:text/html,<body style="margin:0;background:#000"></body>')
+    view_image('null')
 
     try:
         skip_event = get_skip_event()
