@@ -58,8 +58,8 @@ void View::loadPage(const QString &uri)
 {
     qDebug() << "Type: Webpage";
 
-    // Clear current image if any
-    currentImage = QImage();
+    // Keep currentImage as fallback backdrop until webview is ready
+    // (it will be hidden behind the webview once visible)
 
     // Stop any existing animation
     if (movie) {
@@ -256,25 +256,32 @@ void View::scheduleNextFrame()
 
 void View::paintEvent(QPaintEvent*)
 {
-    QPainter painter(this);
-    painter.fillRect(rect(), Qt::black);
+    // Compose frame in off-screen buffer to prevent flicker on framebuffer displays
+    if (backBuffer.size() != size()) {
+        backBuffer = QImage(size(), QImage::Format_RGB32);
+    }
+    backBuffer.fill(Qt::black);
 
     if (!currentImage.isNull()) {
-        // Only log for static images to avoid spam during animation
         if (!isAnimatedImage) {
             qDebug() << "Painting image. Size:" << currentImage.size();
         }
+        QPainter bufPainter(&backBuffer);
         QSize scaledSize = currentImage.size();
         scaledSize.scale(size(), Qt::KeepAspectRatio);
-        QRect targetRect = QRect(QPoint(0, 0), size());
-        targetRect = QRect(
+        QRect targetRect(
             (width() - scaledSize.width()) / 2,
             (height() - scaledSize.height()) / 2,
             scaledSize.width(),
             scaledSize.height()
         );
-        painter.drawImage(targetRect, currentImage);
+        bufPainter.drawImage(targetRect, currentImage);
+        bufPainter.end();
     }
+
+    // Blit entire composed frame at once — no intermediate black flash
+    QPainter painter(this);
+    painter.drawImage(0, 0, backBuffer);
 }
 
 void View::resizeEvent(QResizeEvent* event)
@@ -351,12 +358,10 @@ void View::switchToNextWebView()
 
     qDebug() << "Switching to next web view";
 
-    // Hide current web view
-    currentWebView->setVisible(false);
-
-    // Show next web view
+    // Show new BEFORE hiding old — prevents blank frame between swaps
     nextWebView->setVisible(true);
     nextWebView->clearFocus();
+    currentWebView->setVisible(false);
 
     // Swap the web views
     QWebEngineView* temp = currentWebView;

@@ -213,7 +213,21 @@ def get_node_mac_address():
             return r.json()['mac_address']
         return 'Unknown'
 
-    return os.getenv('MAC_ADDRESS', 'Unable to retrieve MAC address.')
+    # Try env var first, then read from /sys/class/net
+    mac = os.getenv('MAC_ADDRESS', '')
+    if mac:
+        return mac
+    for iface in ('eth0', 'wlan0', 'end0'):
+        path = f'/sys/class/net/{iface}/address'
+        try:
+            if os.path.exists(path):
+                with open(path) as f:
+                    addr = f.read().strip()
+                    if addr and addr != '00:00:00:00:00:00':
+                        return addr
+        except OSError:
+            pass
+    return 'Unable to retrieve MAC address.'
 
 
 def get_active_connections(bus, fields=None):

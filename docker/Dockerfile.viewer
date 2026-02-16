@@ -139,14 +139,7 @@ RUN curl "https://github.com/Screenly/Anthias/releases/download/WebView-v0.3.12/
     tar -xzf "/tmp/qt5-5.15.14-bookworm-pi4.tar.gz" -C /usr/local && \
     rm "qt5-5.15.14-bookworm-pi4.tar.gz"
 
-RUN curl "https://github.com/Screenly/Anthias/releases/download/WebView-v0.3.12/webview-5.15.14-bookworm-pi4-d7a7e2c.tar.gz" \
-        -sL -o "/tmp/webview-5.15.14-bookworm-pi4-d7a7e2c.tar.gz" && \
-    curl "https://github.com/Screenly/Anthias/releases/download/WebView-v0.3.12/webview-5.15.14-bookworm-pi4-d7a7e2c.tar.gz.sha256" \
-        -sL -o "/tmp/webview-5.15.14-bookworm-pi4-d7a7e2c.tar.gz.sha256" && \
-    cd /tmp && \
-    sha256sum -c "webview-5.15.14-bookworm-pi4-d7a7e2c.tar.gz.sha256" && \
-    tar -xzf "/tmp/webview-5.15.14-bookworm-pi4-d7a7e2c.tar.gz" -C /usr/local && \
-    rm "webview-5.15.14-bookworm-pi4-d7a7e2c.tar.gz"
+# Webview is built from source below (after COPY) instead of pre-built binary
 
 # Qt5/WebView libs are in /usr/local/qt5pi/lib (native armhf)
 ENV LD_LIBRARY_PATH=/usr/local/qt5pi/lib
@@ -176,5 +169,22 @@ RUN rm -f /etc/localtime
 WORKDIR /usr/src/app
 RUN mkdir -p /usr/src/app
 COPY . /usr/src/app/
+
+# Build webview from source using custom Qt5 SDK.
+# Under Docker buildx, the x86 qmake/moc tools run via host kernel.
+# Symlink cross-compiler names to native ARM g++ (since we're already on ARM).
+RUN ln -sf /usr/bin/g++ /usr/bin/arm-linux-gnueabihf-g++ && \
+    ln -sf /usr/bin/gcc /usr/bin/arm-linux-gnueabihf-gcc && \
+    ln -sf /usr/bin/strip /usr/bin/arm-linux-gnueabihf-strip && \
+    ln -sf /usr/bin/ar /usr/bin/arm-linux-gnueabihf-ar && \
+    cd /usr/src/app/webview && \
+    /usr/local/qt5pi/bin/qmake ScreenlyWebview.pro && \
+    make -j$(nproc) && \
+    mkdir -p /usr/local/bin /usr/local/share/ScreenlyWebview && \
+    cp ScreenlyWebview /usr/local/bin/ && \
+    cp -rf res/* /usr/local/share/ScreenlyWebview/ && \
+    make clean && \
+    rm -f /usr/bin/arm-linux-gnueabihf-g++ /usr/bin/arm-linux-gnueabihf-gcc \
+          /usr/bin/arm-linux-gnueabihf-strip /usr/bin/arm-linux-gnueabihf-ar
 
 CMD ["bash", "./bin/start_viewer.sh"]

@@ -45,6 +45,7 @@ private:
     QNetworkAccessManager* networkManager;
     QImage currentImage;
     QImage nextImage;
+    QImage backBuffer;
     QMovie* movie;
     QTimer* animationTimer;
     bool isAnimatedImage;
