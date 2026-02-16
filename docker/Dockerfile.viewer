@@ -1,20 +1,28 @@
 # syntax=docker/dockerfile:1.4
 # vim: ft=dockerfile
 
+# === Stage 0: ARM sysroot for cross-compilation ===
+# Qt5 mkspec uses --sysroot=/sysroot which needs ARM libc + libGLESv2.
+# Build minimal ARM image and copy libraries into x86 builder stage.
+FROM balenalib/raspberrypi3-debian:bookworm AS arm-sysroot
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libc6-dev libgles2-mesa-dev libegl1-mesa-dev && \
+    rm -rf /var/lib/apt/lists/*
+
+
 # === Stage 1: Build webview on x86 with ARM cross-compiler ===
 FROM --platform=linux/amd64 debian:bookworm AS webview-builder
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install Debian's ARM cross-compiler (GCC 12) with full ARM sysroot headers.
-# This replaces the Linaro toolchain download — Debian's cross-compiler has
-# proper sysroot at /usr/arm-linux-gnueabihf/ with features.h and all headers.
+# Install Debian's ARM cross-compiler (GCC 12) with proper sysroot headers
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential ca-certificates curl xz-utils \
     gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf && \
     rm -rf /var/lib/apt/lists/*
 
-# Qt5 SDK mkspec hardcodes compiler path at /src/gcc-linaro-7.4.1-2019.02-x86_64_arm-linux-gnueabihf/bin/
+# Qt5 SDK mkspec hardcodes compiler path at /src/gcc-linaro-.../bin/
 # Create symlinks to redirect to Debian's cross-compiler binaries
 RUN mkdir -p /src/gcc-linaro-7.4.1-2019.02-x86_64_arm-linux-gnueabihf/bin && \
     for tool in gcc g++ ar strip nm objcopy objdump ranlib readelf size strings; do \
@@ -23,6 +31,12 @@ RUN mkdir -p /src/gcc-linaro-7.4.1-2019.02-x86_64_arm-linux-gnueabihf/bin && \
     done
 
 ENV PATH="/src/gcc-linaro-7.4.1-2019.02-x86_64_arm-linux-gnueabihf/bin:$PATH"
+
+# Populate /sysroot/ with ARM libraries from the ARM stage.
+# Qt5 mkspec passes --sysroot=/sysroot to the linker.
+COPY --from=arm-sysroot /usr/lib/arm-linux-gnueabihf/ /sysroot/usr/lib/arm-linux-gnueabihf/
+COPY --from=arm-sysroot /lib/arm-linux-gnueabihf/ /sysroot/lib/arm-linux-gnueabihf/
+COPY --from=arm-sysroot /usr/include/ /sysroot/usr/include/
 
 # Download Qt5 SDK (x86 host tools + ARM target libs)
 RUN curl "https://github.com/Screenly/Anthias/releases/download/WebView-v0.3.12/qt5-5.15.14-bookworm-pi4.tar.gz" \
