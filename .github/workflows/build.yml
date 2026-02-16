@@ -118,7 +118,10 @@ jobs:
         with:
           context: .
           file: docker/Dockerfile.viewer
-          platforms: linux/arm64
+          # armhf (32-bit) like original Screenly — needed for OMX hardware
+          # video decoding + DRM video output via libraspberrypi0/VideoCore.
+          # arm64 VLC has no hardware acceleration = ~230% CPU for video.
+          platforms: linux/arm/v7
           push: true
           tags: |
             ${{ steps.prefix.outputs.value }}-viewer:latest-pi4-64
