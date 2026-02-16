@@ -3,6 +3,10 @@
 
 FROM debian:bookworm
 
+# ScreenlyWebview and Qt5 are built as armhf (32-bit ARM).
+# On arm64 host we need multiarch to run them.
+RUN dpkg --add-architecture armhf
+
 RUN \
     apt-get update && \
     apt-get -y install --no-install-recommends \
@@ -110,6 +114,52 @@ RUN \
         libswresample-dev && \
     rm -rf /var/lib/apt/lists/*
 
+# Install armhf (32-bit) runtime libraries for ScreenlyWebview and Qt5.
+# These are needed because the pre-built Qt5/WebView binaries are armhf.
+RUN \
+    apt-get update && \
+    apt-get -y install --no-install-recommends \
+        libc6:armhf \
+        libstdc++6:armhf \
+        libgcc-s1:armhf \
+        libgles2:armhf \
+        libegl1:armhf \
+        libnss3:armhf \
+        zlib1g:armhf \
+        libevent-2.1-7:armhf \
+        libjpeg62-turbo:armhf \
+        libopus0:armhf \
+        libvpx7:armhf \
+        libpng16-16:armhf \
+        libwebp7:armhf \
+        libwebpmux3:armhf \
+        libwebpdemux2:armhf \
+        libfreetype6:armhf \
+        libexpat1:armhf \
+        libfontconfig1:armhf \
+        libpci3:armhf \
+        libasound2:armhf \
+        libsnappy1v5:armhf \
+        libdbus-1-3:armhf \
+        libminizip1:armhf \
+        libglib2.0-0:armhf \
+        libglvnd0:armhf \
+        libudev1:armhf \
+        libsystemd0:armhf \
+        libgcrypt20:armhf \
+        liblzma5:armhf \
+        libzstd1:armhf \
+        liblz4-1:armhf \
+        libgpg-error0:armhf \
+        libpcre2-8-0:armhf \
+        libbrotli1:armhf \
+        libcap2:armhf \
+        libdrm2:armhf \
+        libgbm1:armhf \
+        libinput10:armhf \
+        libxkbcommon0:armhf && \
+    rm -rf /var/lib/apt/lists/*
+
 # We need this to ensure that the wheels can be built.
 # Otherwise we get "invalid command 'bdist_wheel'"
 RUN \
@@ -142,6 +192,9 @@ RUN curl "https://github.com/Screenly/Anthias/releases/download/WebView-v0.3.12/
     tar -xzf "/tmp/webview-5.15.14-bookworm-pi4-d7a7e2c.tar.gz" -C /usr/local && \
     rm "webview-5.15.14-bookworm-pi4-d7a7e2c.tar.gz"
 
+# Qt5/WebView armhf libs are in /usr/local/qt5pi/lib
+ENV LD_LIBRARY_PATH=/usr/local/qt5pi/lib
+ENV QT_PLUGIN_PATH=/usr/local/qt5pi/plugins
 ENV QT_QPA_EGLFS_FORCE888=1
 ENV QT_QPA_PLATFORM=linuxfb
 
