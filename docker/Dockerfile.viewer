@@ -157,6 +157,7 @@ RUN \
         libdrm2:armhf \
         libgbm1:armhf \
         libinput10:armhf \
+        libts0:armhf \
         libxkbcommon0:armhf && \
     rm -rf /var/lib/apt/lists/*
 
