@@ -6,16 +6,21 @@ FROM --platform=linux/amd64 debian:bookworm AS webview-builder
 
 ENV DEBIAN_FRONTEND=noninteractive
 
+# Install Debian's ARM cross-compiler (GCC 12) with full ARM sysroot headers.
+# This replaces the Linaro toolchain download — Debian's cross-compiler has
+# proper sysroot at /usr/arm-linux-gnueabihf/ with features.h and all headers.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential ca-certificates curl xz-utils && \
+    build-essential ca-certificates curl xz-utils \
+    gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf && \
     rm -rf /var/lib/apt/lists/*
 
-# Download Linaro ARM cross-compiler to /src/ (Qt5 SDK mkspec hardcodes this path)
-RUN mkdir -p /src && \
-    curl -sL "https://releases.linaro.org/components/toolchain/binaries/7.4-2019.02/arm-linux-gnueabihf/gcc-linaro-7.4.1-2019.02-x86_64_arm-linux-gnueabihf.tar.xz" \
-    -o /tmp/toolchain.tar.xz && \
-    tar xf /tmp/toolchain.tar.xz -C /src && \
-    rm /tmp/toolchain.tar.xz
+# Qt5 SDK mkspec hardcodes compiler path at /src/gcc-linaro-7.4.1-2019.02-x86_64_arm-linux-gnueabihf/bin/
+# Create symlinks to redirect to Debian's cross-compiler binaries
+RUN mkdir -p /src/gcc-linaro-7.4.1-2019.02-x86_64_arm-linux-gnueabihf/bin && \
+    for tool in gcc g++ ar strip nm objcopy objdump ranlib readelf size strings; do \
+        ln -sf /usr/bin/arm-linux-gnueabihf-$tool \
+            /src/gcc-linaro-7.4.1-2019.02-x86_64_arm-linux-gnueabihf/bin/arm-linux-gnueabihf-$tool; \
+    done
 
 ENV PATH="/src/gcc-linaro-7.4.1-2019.02-x86_64_arm-linux-gnueabihf/bin:$PATH"
 
