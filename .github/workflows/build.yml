@@ -7,7 +7,6 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_PREFIX: ghcr.io/${{ github.repository_owner }}/anthias
 
 jobs:
   build:
@@ -24,6 +23,10 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Set image prefix
+        id: prefix
+        run: echo "value=ghcr.io/$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')/anthias" >> $GITHUB_OUTPUT
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -52,8 +55,8 @@ jobs:
           platforms: linux/arm64
           push: true
           tags: |
-            ${{ env.IMAGE_PREFIX }}-${{ matrix.service }}:latest-pi4-64
-            ${{ env.IMAGE_PREFIX }}-${{ matrix.service }}:${{ steps.meta.outputs.short_sha }}-pi4-64
+            ${{ steps.prefix.outputs.value }}-${{ matrix.service }}:latest-pi4-64
+            ${{ steps.prefix.outputs.value }}-${{ matrix.service }}:${{ steps.meta.outputs.short_sha }}-pi4-64
           build-args: |
             GIT_HASH=${{ github.sha }}
             GIT_SHORT_HASH=${{ steps.meta.outputs.short_sha }}
@@ -71,6 +74,10 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Set image prefix
+        id: prefix
+        run: echo "value=ghcr.io/$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')/anthias" >> $GITHUB_OUTPUT
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -100,8 +107,8 @@ jobs:
           platforms: linux/arm64
           push: true
           tags: |
-            ${{ env.IMAGE_PREFIX }}-viewer:latest-pi4-64
-            ${{ env.IMAGE_PREFIX }}-viewer:${{ steps.meta.outputs.short_sha }}-pi4-64
+            ${{ steps.prefix.outputs.value }}-viewer:latest-pi4-64
+            ${{ steps.prefix.outputs.value }}-viewer:${{ steps.meta.outputs.short_sha }}-pi4-64
           build-args: |
             GIT_HASH=${{ github.sha }}
             GIT_SHORT_HASH=${{ steps.meta.outputs.short_sha }}
