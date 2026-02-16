@@ -10,13 +10,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential ca-certificates curl xz-utils && \
     rm -rf /var/lib/apt/lists/*
 
-# Download Linaro ARM cross-compiler
-RUN curl -sL "https://releases.linaro.org/components/toolchain/binaries/7.4-2019.02/arm-linux-gnueabihf/gcc-linaro-7.4.1-2019.02-x86_64_arm-linux-gnueabihf.tar.xz" \
+# Download Linaro ARM cross-compiler to /src/ (Qt5 SDK mkspec hardcodes this path)
+RUN mkdir -p /src && \
+    curl -sL "https://releases.linaro.org/components/toolchain/binaries/7.4-2019.02/arm-linux-gnueabihf/gcc-linaro-7.4.1-2019.02-x86_64_arm-linux-gnueabihf.tar.xz" \
     -o /tmp/toolchain.tar.xz && \
-    tar xf /tmp/toolchain.tar.xz -C /opt && \
+    tar xf /tmp/toolchain.tar.xz -C /src && \
     rm /tmp/toolchain.tar.xz
 
-ENV PATH="/opt/gcc-linaro-7.4.1-2019.02-x86_64_arm-linux-gnueabihf/bin:$PATH"
+ENV PATH="/src/gcc-linaro-7.4.1-2019.02-x86_64_arm-linux-gnueabihf/bin:$PATH"
 
 # Download Qt5 SDK (x86 host tools + ARM target libs)
 RUN curl "https://github.com/Screenly/Anthias/releases/download/WebView-v0.3.12/qt5-5.15.14-bookworm-pi4.tar.gz" \
