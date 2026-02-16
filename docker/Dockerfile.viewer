@@ -172,19 +172,16 @@ COPY . /usr/src/app/
 
 # Build webview from source using custom Qt5 SDK.
 # Under Docker buildx, the x86 qmake/moc tools run via host kernel.
-# Symlink cross-compiler names to native ARM g++ (since we're already on ARM).
-RUN ln -sf /usr/bin/g++ /usr/bin/arm-linux-gnueabihf-g++ && \
-    ln -sf /usr/bin/gcc /usr/bin/arm-linux-gnueabihf-gcc && \
-    ln -sf /usr/bin/strip /usr/bin/arm-linux-gnueabihf-strip && \
-    ln -sf /usr/bin/ar /usr/bin/arm-linux-gnueabihf-ar && \
+# Ensure cross-compiler names point to native ARM tools (some may already exist).
+RUN for tool in g++ gcc strip ar; do \
+        ln -sf /usr/bin/$tool /usr/bin/arm-linux-gnueabihf-$tool 2>/dev/null || true; \
+    done && \
     cd /usr/src/app/webview && \
     /usr/local/qt5pi/bin/qmake ScreenlyWebview.pro && \
     make -j$(nproc) && \
     mkdir -p /usr/local/bin /usr/local/share/ScreenlyWebview && \
     cp ScreenlyWebview /usr/local/bin/ && \
     cp -rf res/* /usr/local/share/ScreenlyWebview/ && \
-    make clean && \
-    rm -f /usr/bin/arm-linux-gnueabihf-g++ /usr/bin/arm-linux-gnueabihf-gcc \
-          /usr/bin/arm-linux-gnueabihf-strip /usr/bin/arm-linux-gnueabihf-ar
+    make clean
 
 CMD ["bash", "./bin/start_viewer.sh"]
