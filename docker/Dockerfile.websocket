@@ -1,0 +1,43 @@
+# syntax=docker/dockerfile:1.4
+FROM debian:bookworm
+
+RUN \
+    apt-get update && \
+    apt-get -y install --no-install-recommends \
+        build-essential \
+        ca-certificates \
+        curl \
+        libffi-dev \
+        libssl-dev \
+        libzmq3-dev \
+        libzmq5-dev \
+        libzmq5 \
+        net-tools \
+        procps \
+        python3-dev \
+        python3-pip \
+        python3-setuptools \
+        python-is-python3 \
+        sqlite3 && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN \
+    pip3 install --upgrade pip --break-system-packages && \
+    pip3 install wheel --break-system-packages
+
+COPY requirements/requirements-websocket.txt /tmp/requirements.txt
+RUN \
+    pip3 install -r /tmp/requirements.txt --break-system-packages
+
+RUN mkdir -p /usr/src/app
+WORKDIR /usr/src/app
+COPY . /usr/src/app/
+
+ARG GIT_HASH=unknown
+ARG GIT_SHORT_HASH=unknown
+ARG GIT_BRANCH=main
+ENV GIT_HASH=${GIT_HASH}
+ENV GIT_SHORT_HASH=${GIT_SHORT_HASH}
+ENV GIT_BRANCH=${GIT_BRANCH}
+
+CMD ["python", "websocket_server_layer.py"]

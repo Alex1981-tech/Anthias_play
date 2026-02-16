@@ -1,0 +1,185 @@
+# syntax=docker/dockerfile:1.4
+# vim: ft=dockerfile
+
+FROM balenalib/raspberrypi4-64-debian:bookworm
+
+# This list needs to be trimmed back later
+RUN \
+    apt-get update && \
+    apt-get -y install --no-install-recommends \
+        build-essential \
+        ca-certificates \
+        curl \
+        dbus-daemon \
+        fonts-arphic-uming \
+        git-core \
+        libasound2-dev \
+        libavcodec-dev \
+        libavformat-dev \
+        libavutil-dev \
+        libbz2-dev \
+        libcec-dev  \
+        libdbus-1-dev \
+        libdbus-glib-1-dev \
+        libdrm-dev \
+        libegl1-mesa-dev \
+        libevent-dev \
+        libffi-dev \
+        libfontconfig1-dev \
+        libfreetype6-dev \
+        libgbm-dev \
+        libgcrypt20-dev \
+        libgles2-mesa \
+        libgles2-mesa-dev \
+        libglib2.0-dev \
+        libicu-dev \
+        libinput-dev \
+        libiodbc2-dev \
+        libjpeg62-turbo-dev \
+        libjsoncpp-dev \
+        libminizip-dev \
+        libnss3 \
+        libnss3-dev \
+        libnss3-tools \
+        libopus-dev \
+        libpci-dev \
+        libpng-dev \
+        libpng16-16 \
+        libpq-dev \
+        libpulse-dev \
+        librsvg2-common \
+        libsdl2-dev \
+        libsnappy-dev \
+        libsqlite3-dev \
+        libsrtp2-dev \
+        libssl-dev \
+        libzmq3-dev \
+        libswscale-dev \
+        libsystemd-dev \
+        libts-dev \
+        libudev-dev \
+        libvpx-dev \
+        libwebp-dev \
+        libx11-dev \
+        libx11-xcb-dev \
+        libx11-xcb1 \
+        libxcb-glx0-dev \
+        libxcb-icccm4 \
+        libxcb-icccm4-dev \
+        libxcb-image0 \
+        libxcb-image0-dev \
+        libxcb-keysyms1 \
+        libxcb-keysyms1-dev \
+        libxcb-randr0-dev \
+        libxcb-render-util0 \
+        libxcb-render-util0-dev \
+        libxcb-shape0-dev \
+        libxcb-shm0 \
+        libxcb-shm0-dev \
+        libxcb-sync-dev \
+        libxcb-sync1 \
+        libxcb-xfixes0-dev \
+        libxcb-xinerama0 \
+        libxcb-xinerama0-dev \
+        libxcb1 \
+        libxcb1-dev \
+        libxext-dev \
+        libxi-dev \
+        libxkbcommon-dev \
+        libxrender-dev \
+        libxslt1-dev \
+        libxss-dev \
+        libxtst-dev \
+        libzmq5-dev \
+        libzmq5 \
+        net-tools \
+        procps \
+        psmisc \
+        python3-dev \
+        python3-gi \
+        python3-netifaces \
+        python3-pip \
+        python3-setuptools \
+        python-is-python3 \
+        ttf-wqy-zenhei \
+        vlc \
+        sudo \
+        sqlite3 \
+        ffmpeg \
+        libavcodec-dev \
+        libavdevice-dev \
+        libavfilter-dev \
+        libavformat-dev \
+        libavutil-dev \
+        libswresample-dev \
+        libswscale-dev \
+        libraspberrypi0 \
+        libgst-dev \
+        libsqlite0-dev \
+        libsrtp0-dev \
+        qt5-image-formats-plugins \
+        libssl1.1
+
+# We need this to ensure that the wheels can be built.
+# Otherwise we get "invalid command 'bdist_wheel'"
+RUN \
+    pip3 install --upgrade pip --break-system-packages && \
+    pip3 install wheel --break-system-packages
+
+# Install Python requirements
+COPY requirements/requirements.viewer.txt /tmp/requirements.txt
+
+RUN \
+    pip3 install -r /tmp/requirements.txt --break-system-packages
+
+# Works around issue with `curl`
+# https://github.com/balena-io-library/base-images/issues/562
+RUN c_rehash
+
+# QT Base from packages does not support eglfs
+
+RUN curl "https://github.com/Screenly/Anthias/releases/download/WebView-v0.3.12/qt5-5.15.14-bookworm-pi4.tar.gz" \
+        -sL -o "/tmp/qt5-5.15.14-bookworm-pi4.tar.gz" && \
+    curl "https://github.com/Screenly/Anthias/releases/download/WebView-v0.3.12/qt5-5.15.14-bookworm-pi4.tar.gz.sha256" \
+        -sL -o "/tmp/qt5-5.15.14-bookworm-pi4.tar.gz.sha256" && \
+    cd /tmp && \
+    sha256sum -c "qt5-5.15.14-bookworm-pi4.tar.gz.sha256" && \
+    tar -xzf "/tmp/qt5-5.15.14-bookworm-pi4.tar.gz" -C /usr/local && \
+    rm "qt5-5.15.14-bookworm-pi4.tar.gz"
+
+RUN curl "https://github.com/Screenly/Anthias/releases/download/WebView-v0.3.12/webview-5.15.14-bookworm-pi4-d7a7e2c.tar.gz" \
+        -sL -o "/tmp/webview-5.15.14-bookworm-pi4-d7a7e2c.tar.gz" && \
+    curl "https://github.com/Screenly/Anthias/releases/download/WebView-v0.3.12/webview-5.15.14-bookworm-pi4-d7a7e2c.tar.gz.sha256" \
+        -sL -o "/tmp/webview-5.15.14-bookworm-pi4-d7a7e2c.tar.gz.sha256" && \
+    cd /tmp && \
+    sha256sum -c "webview-5.15.14-bookworm-pi4-d7a7e2c.tar.gz.sha256" && \
+    tar -xzf "/tmp/webview-5.15.14-bookworm-pi4-d7a7e2c.tar.gz" -C /usr/local && \
+    rm "webview-5.15.14-bookworm-pi4-d7a7e2c.tar.gz"
+
+ENV QT_QPA_EGLFS_FORCE888=1
+ENV QT_QPA_PLATFORM=linuxfb
+
+# Turn on debug logging for now
+#ENV QT_LOGGING_RULES=qt.qpa.*=true
+ENV QT_LOGGING_RULES=*.debug=true
+ENV QT_QPA_DEBUG=1
+
+ARG GIT_HASH=unknown
+ARG GIT_SHORT_HASH=unknown
+ARG GIT_BRANCH=main
+ARG DEVICE_TYPE=pi4
+ENV GIT_HASH=${GIT_HASH}
+ENV GIT_SHORT_HASH=${GIT_SHORT_HASH}
+ENV GIT_BRANCH=${GIT_BRANCH}
+ENV DEVICE_TYPE=${DEVICE_TYPE}
+ENV DJANGO_SETTINGS_MODULE="anthias_django.settings"
+
+RUN useradd -g video viewer
+
+RUN rm -f /etc/localtime
+
+WORKDIR /usr/src/app
+RUN mkdir -p /usr/src/app
+COPY . /usr/src/app/
+
+CMD ["bash", "./bin/start_viewer.sh"]

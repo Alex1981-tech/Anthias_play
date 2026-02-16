@@ -103,7 +103,18 @@ def _generate_schedule_playlist(slots, skip_event_id=None):
                 active_time = slot
 
     # Priority: event > time > default
-    active_slot = active_event or active_time or default_slot
+    # If a higher-priority slot has no items, fall back to lower priority.
+    active_slot = None
+    for candidate in [active_event, active_time, default_slot]:
+        if candidate is None:
+            continue
+        has_items = ScheduleSlotItem.objects.filter(slot=candidate).exists()
+        if has_items:
+            active_slot = candidate
+            break
+    # If no slot has items, still use the best available for deadline calc
+    if active_slot is None:
+        active_slot = active_event or active_time or default_slot
 
     if active_slot is None:
         # Slots defined but nothing active right now and no default
