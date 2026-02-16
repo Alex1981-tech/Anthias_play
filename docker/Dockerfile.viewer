@@ -36,6 +36,7 @@ ENV PATH="/src/gcc-linaro-7.4.1-2019.02-x86_64_arm-linux-gnueabihf/bin:$PATH"
 # Qt5 mkspec passes --sysroot=/sysroot to the linker.
 COPY --from=arm-sysroot /usr/lib/arm-linux-gnueabihf/ /sysroot/usr/lib/arm-linux-gnueabihf/
 COPY --from=arm-sysroot /lib/arm-linux-gnueabihf/ /sysroot/lib/arm-linux-gnueabihf/
+COPY --from=arm-sysroot /lib/ld-linux-armhf.so.3 /sysroot/lib/ld-linux-armhf.so.3
 COPY --from=arm-sysroot /usr/include/ /sysroot/usr/include/
 
 # Download Qt5 SDK (x86 host tools + ARM target libs)
