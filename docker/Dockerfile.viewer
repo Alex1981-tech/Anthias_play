@@ -53,7 +53,8 @@ RUN curl "https://github.com/Screenly/Anthias/releases/download/WebView-v0.3.12/
 COPY webview/ /webview/
 
 RUN cd /webview && \
-    /build/qt5pi/bin/qmake ScreenlyWebview.pro && \
+    /build/qt5pi/bin/qmake ScreenlyWebview.pro \
+        "QMAKE_LFLAGS += -Wl,--allow-shlib-undefined" && \
     make -j$(nproc) && \
     mkdir -p /output/bin /output/share/ScreenlyWebview && \
     cp ScreenlyWebview /output/bin/ && \
