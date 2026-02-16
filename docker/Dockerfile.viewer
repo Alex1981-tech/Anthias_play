@@ -1,6 +1,45 @@
 # syntax=docker/dockerfile:1.4
 # vim: ft=dockerfile
 
+# === Stage 1: Build webview on x86 with ARM cross-compiler ===
+FROM --platform=linux/amd64 debian:bookworm AS webview-builder
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential ca-certificates curl xz-utils && \
+    rm -rf /var/lib/apt/lists/*
+
+# Download Linaro ARM cross-compiler
+RUN curl -sL "https://releases.linaro.org/components/toolchain/binaries/7.4-2019.02/arm-linux-gnueabihf/gcc-linaro-7.4.1-2019.02-x86_64_arm-linux-gnueabihf.tar.xz" \
+    -o /tmp/toolchain.tar.xz && \
+    tar xf /tmp/toolchain.tar.xz -C /opt && \
+    rm /tmp/toolchain.tar.xz
+
+ENV PATH="/opt/gcc-linaro-7.4.1-2019.02-x86_64_arm-linux-gnueabihf/bin:$PATH"
+
+# Download Qt5 SDK (x86 host tools + ARM target libs)
+RUN curl "https://github.com/Screenly/Anthias/releases/download/WebView-v0.3.12/qt5-5.15.14-bookworm-pi4.tar.gz" \
+        -sL -o "/tmp/qt5.tar.gz" && \
+    curl "https://github.com/Screenly/Anthias/releases/download/WebView-v0.3.12/qt5-5.15.14-bookworm-pi4.tar.gz.sha256" \
+        -sL -o "/tmp/qt5.tar.gz.sha256" && \
+    cd /tmp && sha256sum -c "qt5.tar.gz.sha256" && \
+    mkdir -p /build/qt5pi && \
+    tar -xzf "qt5.tar.gz" -C /build && \
+    rm "qt5.tar.gz" "qt5.tar.gz.sha256"
+
+# Copy webview source and build
+COPY webview/ /webview/
+
+RUN cd /webview && \
+    /build/qt5pi/bin/qmake ScreenlyWebview.pro && \
+    make -j$(nproc) && \
+    mkdir -p /output/bin /output/share/ScreenlyWebview && \
+    cp ScreenlyWebview /output/bin/ && \
+    cp -rf res/* /output/share/ScreenlyWebview/
+
+
+# === Stage 2: ARM runtime image ===
 # Use balenalib armhf (32-bit) base image like original Screenly/Anthias.
 # This is critical: armhf VLC has OMX hardware video decoding + DRM video output
 # which gives ~5% CPU for video playback vs ~230% with arm64 software rendering.
@@ -129,7 +168,6 @@ RUN \
     pip3 install -r /tmp/requirements.txt --break-system-packages
 
 # QT Base from packages does not support eglfs
-
 RUN curl "https://github.com/Screenly/Anthias/releases/download/WebView-v0.3.12/qt5-5.15.14-bookworm-pi4.tar.gz" \
         -sL -o "/tmp/qt5-5.15.14-bookworm-pi4.tar.gz" && \
     curl "https://github.com/Screenly/Anthias/releases/download/WebView-v0.3.12/qt5-5.15.14-bookworm-pi4.tar.gz.sha256" \
@@ -139,7 +177,9 @@ RUN curl "https://github.com/Screenly/Anthias/releases/download/WebView-v0.3.12/
     tar -xzf "/tmp/qt5-5.15.14-bookworm-pi4.tar.gz" -C /usr/local && \
     rm "qt5-5.15.14-bookworm-pi4.tar.gz"
 
-# Webview is built from source below (after COPY) instead of pre-built binary
+# Copy webview binary built in x86 stage
+COPY --from=webview-builder /output/bin/ScreenlyWebview /usr/local/bin/ScreenlyWebview
+COPY --from=webview-builder /output/share/ScreenlyWebview/ /usr/local/share/ScreenlyWebview/
 
 # Qt5/WebView libs are in /usr/local/qt5pi/lib (native armhf)
 ENV LD_LIBRARY_PATH=/usr/local/qt5pi/lib
@@ -169,19 +209,5 @@ RUN rm -f /etc/localtime
 WORKDIR /usr/src/app
 RUN mkdir -p /usr/src/app
 COPY . /usr/src/app/
-
-# Build webview from source using custom Qt5 SDK.
-# Under Docker buildx, the x86 qmake/moc tools run via host kernel.
-# Ensure cross-compiler names point to native ARM tools (some may already exist).
-RUN for tool in g++ gcc strip ar; do \
-        ln -sf /usr/bin/$tool /usr/bin/arm-linux-gnueabihf-$tool 2>/dev/null || true; \
-    done && \
-    cd /usr/src/app/webview && \
-    /usr/local/qt5pi/bin/qmake ScreenlyWebview.pro && \
-    make -j$(nproc) && \
-    mkdir -p /usr/local/bin /usr/local/share/ScreenlyWebview && \
-    cp ScreenlyWebview /usr/local/bin/ && \
-    cp -rf res/* /usr/local/share/ScreenlyWebview/ && \
-    make clean
 
 CMD ["bash", "./bin/start_viewer.sh"]
