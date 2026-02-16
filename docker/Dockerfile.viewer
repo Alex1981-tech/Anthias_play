@@ -1,9 +1,8 @@
 # syntax=docker/dockerfile:1.4
 # vim: ft=dockerfile
 
-FROM balenalib/raspberrypi4-64-debian:bookworm
+FROM debian:bookworm
 
-# This list needs to be trimmed back later
 RUN \
     apt-get update && \
     apt-get -y install --no-install-recommends \
@@ -18,7 +17,7 @@ RUN \
         libavformat-dev \
         libavutil-dev \
         libbz2-dev \
-        libcec-dev  \
+        libcec-dev \
         libdbus-1-dev \
         libdbus-glib-1-dev \
         libdrm-dev \
@@ -106,19 +105,10 @@ RUN \
         sudo \
         sqlite3 \
         ffmpeg \
-        libavcodec-dev \
         libavdevice-dev \
         libavfilter-dev \
-        libavformat-dev \
-        libavutil-dev \
-        libswresample-dev \
-        libswscale-dev \
-        libraspberrypi0 \
-        libgst-dev \
-        libsqlite0-dev \
-        libsrtp0-dev \
-        qt5-image-formats-plugins \
-        libssl1.1
+        libswresample-dev && \
+    rm -rf /var/lib/apt/lists/*
 
 # We need this to ensure that the wheels can be built.
 # Otherwise we get "invalid command 'bdist_wheel'"
@@ -131,10 +121,6 @@ COPY requirements/requirements.viewer.txt /tmp/requirements.txt
 
 RUN \
     pip3 install -r /tmp/requirements.txt --break-system-packages
-
-# Works around issue with `curl`
-# https://github.com/balena-io-library/base-images/issues/562
-RUN c_rehash
 
 # QT Base from packages does not support eglfs
 
