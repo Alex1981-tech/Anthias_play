@@ -317,12 +317,6 @@ class Scheduler(object):
         self.current_asset_id = current_asset.get('asset_id')
         return current_asset
 
-    def peek_next_asset(self):
-        """Look at the next asset WITHOUT advancing the index."""
-        if not self.assets:
-            return None
-        return self.assets[self.index % len(self.assets)]
-
     def refresh_playlist(self):
         logging.debug('refresh_playlist')
         time_cur = timezone.now()
