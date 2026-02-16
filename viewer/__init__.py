@@ -186,7 +186,7 @@ def view_image(uri):
         logging.info(browser.process.stdout)
 
 
-def view_video(uri, duration):
+def view_video(uri, duration, keep_playing=False):
     logging.debug('Displaying video %s for %s ', uri, duration)
     media_player = MediaPlayerProxy.get_instance()
 
@@ -201,6 +201,7 @@ def view_video(uri, duration):
         if skip_event.wait(timeout=int(duration)):
             logging.info('Skip detected during video playback, stopping video')
             media_player.stop()
+            return
         else:
             pass
     except sh.ErrorReturnCode_1:
@@ -209,7 +210,8 @@ def view_video(uri, duration):
             'request was rejected.'
         )
 
-    media_player.stop()
+    if not keep_playing:
+        media_player.stop()
 
 
 def _log_playback(asset):
@@ -316,8 +318,16 @@ def asset_loop(scheduler):
         _log_playback(asset)
 
         if 'image' in mime:
+            # Stop VLC if it was playing a video before showing image
+            media_player = MediaPlayerProxy.get_instance()
+            if media_player.is_playing():
+                media_player.stop()
             view_image(uri)
         elif 'web' in mime:
+            # Stop VLC if it was playing a video before showing web
+            media_player = MediaPlayerProxy.get_instance()
+            if media_player.is_playing():
+                media_player.stop()
             if _is_cctv_url(uri):
                 if not _request_cctv_start(uri):
                     logging.info(
@@ -329,7 +339,14 @@ def asset_loop(scheduler):
                     return
             view_webpage(uri)
         elif 'video' or 'streaming' in mime:
-            view_video(uri, asset['duration'])
+            # Peek at next asset to decide whether to keep VLC running
+            next_asset = scheduler.peek_next_asset()
+            next_is_video = (
+                next_asset is not None
+                and ('video' in next_asset.get('mimetype', '')
+                     or 'streaming' in next_asset.get('mimetype', ''))
+            )
+            view_video(uri, asset['duration'], keep_playing=next_is_video)
         else:
             logging.error('Unknown MimeType %s', mime)
 
