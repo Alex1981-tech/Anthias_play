@@ -21,6 +21,52 @@ CMDLINE="/boot/firmware/cmdline.txt"
 SPLASH_IMG="/home/pi/.screenly/splash.png"
 SPLASH_SRC="/home/pi/screenly/static/img/standby.png"
 
+# ── 0. HDMI headless boot fix (runs every time, idempotent) ──────
+# Pi4 has two HDMI ports. hdmi_force_hotplug=1 only forces port 0
+# (HDMI-A-1). Port 1 (HDMI-A-2) needs hdmi_force_hotplug:1=1.
+# Without this, /dev/fb0 is not created when no monitor is connected
+# and the viewer container cannot render to framebuffer.
+# The 'D' flag in video= tells the KMS driver to force-enable the
+# connector even when no display is physically detected.
+HDMI_CHANGED=false
+
+if [ -f "$CONFIG" ]; then
+    # Force HDMI hotplug for both ports (firmware level)
+    if ! grep -q "^hdmi_force_hotplug=1" "$CONFIG" 2>/dev/null; then
+        echo "" >> "$CONFIG"
+        echo "# Anthias: force HDMI output without monitor" >> "$CONFIG"
+        echo "hdmi_force_hotplug=1" >> "$CONFIG"
+        HDMI_CHANGED=true
+    fi
+    if ! grep -q "^hdmi_force_hotplug:1=1" "$CONFIG" 2>/dev/null; then
+        # Add right after hdmi_force_hotplug=1
+        sed -i '/^hdmi_force_hotplug=1$/a hdmi_force_hotplug:1=1' "$CONFIG"
+        HDMI_CHANGED=true
+    fi
+fi
+
+if [ -f "$CMDLINE" ]; then
+    # Add 'D' (force-enable) flag to video= parameter if missing.
+    # Matches video=HDMI-A-N:RESxRES@FREQ without trailing D and appends it.
+    if grep -qE 'video=HDMI-A-[0-9]+:[0-9]+x[0-9]+@[0-9]+$' "$CMDLINE" 2>/dev/null; then
+        sed -i -E 's/(video=HDMI-A-[0-9]+:[0-9]+x[0-9]+@[0-9]+)$/\1D/' "$CMDLINE"
+        HDMI_CHANGED=true
+    fi
+    # If no video= parameter at all, add default for HDMI-A-2
+    if ! grep -q "video=HDMI-A-" "$CMDLINE" 2>/dev/null; then
+        CMDLINE_CONTENT=$(cat "$CMDLINE")
+        echo "$CMDLINE_CONTENT video=HDMI-A-2:1920x1080@60D" > "$CMDLINE"
+        HDMI_CHANGED=true
+    fi
+fi
+
+if [ "$HDMI_CHANGED" = true ]; then
+    echo "[silent-boot] HDMI headless boot fix applied (reboot required)"
+else
+    echo "[silent-boot] HDMI headless config already OK"
+fi
+# ── end HDMI fix ─────────────────────────────────────────────────
+
 if [ -f "$FLAG" ]; then
     echo "[silent-boot] Already configured, skipping."
     exit 0

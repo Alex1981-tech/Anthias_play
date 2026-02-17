@@ -84,6 +84,26 @@
     - touches-boot-partition
     - raspberry-pi
 
+- name: Force HDMI hotplug for port 0 (HDMI-A-1)
+  ansible.builtin.lineinfile:
+    path: "{{ config_path }}"
+    regexp: ^hdmi_force_hotplug=
+    line: hdmi_force_hotplug=1
+  tags:
+    - touches-boot-partition
+    - raspberry-pi
+
+- name: Force HDMI hotplug for port 1 (HDMI-A-2, Pi4 only)
+  ansible.builtin.lineinfile:
+    path: "{{ config_path }}"
+    regexp: "^hdmi_force_hotplug:1="
+    line: "hdmi_force_hotplug:1=1"
+    insertafter: ^hdmi_force_hotplug=
+  when: device_type == "pi4"
+  tags:
+    - touches-boot-partition
+    - raspberry-pi
+
 - name: Backup kernel boot args
   ansible.builtin.copy:
     src: "{{ cmdline_path }}"
