@@ -74,6 +74,7 @@ RUN \
     apt-get -y install --no-install-recommends \
         build-essential \
         ca-certificates \
+        v4l-utils \
         curl \
         dbus-daemon \
         fonts-arphic-uming \

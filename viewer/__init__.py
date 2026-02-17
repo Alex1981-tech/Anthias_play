@@ -27,6 +27,7 @@ from viewer.constants import (
     SPLASH_PAGE_URL,
     STANDBY_SCREEN,
 )
+from viewer.cec_controller import CecController
 from viewer.media_player import MediaPlayerProxy
 from viewer.playback import navigate_to_asset, play_loop, skip_asset, stop_loop
 from viewer.utils import (
@@ -287,26 +288,23 @@ def _request_cctv_start(uri):
         return False
 
 
-def asset_loop(scheduler):
+def asset_loop(scheduler, cec=None):
     asset = scheduler.get_next_asset()
 
     if asset is None:
-        logging.info(
-            'Playlist is empty. Showing splash with IP address.'
-        )
-        view_webpage(SPLASH_PAGE_URL)
+        logging.info('Playlist is empty. TV standby, waiting for content.')
+        if cec:
+            cec.standby()
         skip_event = get_skip_event()
         skip_event.clear()
-        if skip_event.wait(timeout=EMPTY_PL_DELAY):
-            # Skip was triggered, continue immediately to next iteration
-            logging.info(
-                'Skip detected during empty playlist wait, continuing'
-            )
-        else:
-            # Duration elapsed normally, continue to next iteration
-            pass
+        skip_event.wait(timeout=EMPTY_PL_DELAY)
+        return
 
-    elif path.isfile(asset['uri']) or (
+    # Content available — ensure TV is on
+    if cec:
+        cec.wake()
+
+    if path.isfile(asset['uri']) or (
         not url_fails(asset['uri']) or asset['skip_asset_check']
     ):
         name, mime, uri = asset['name'], asset['mimetype'], asset['uri']
@@ -395,13 +393,14 @@ def wait_for_node_ip(seconds):
 def start_loop():
     global loop_is_stopped
 
+    cec = CecController()
     logging.debug('Entering infinite loop.')
     while True:
         if loop_is_stopped:
             sleep(0.1)
             continue
 
-        asset_loop(scheduler)
+        asset_loop(scheduler, cec)
 
 
 def main():
