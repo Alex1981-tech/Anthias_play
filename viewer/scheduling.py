@@ -2,12 +2,19 @@ import logging
 import threading
 from datetime import timedelta
 from os import path
-from random import shuffle
+import secrets
 
 from django.utils import timezone
 
 from anthias_app.models import Asset, ScheduleSlot, ScheduleSlotItem
 from settings import settings
+
+_sysrandom = secrets.SystemRandom()
+
+
+def _secure_shuffle(lst):
+    """Shuffle list in-place using a cryptographically secure RNG."""
+    _sysrandom.shuffle(lst)
 
 
 def get_specific_asset(asset_id):
@@ -149,7 +156,7 @@ def _generate_schedule_playlist(slots, skip_event_id=None):
 
     # Never shuffle event slots (strict order matters)
     if not no_loop and settings['shuffle_playlist']:
-        shuffle(playlist)
+        _secure_shuffle(playlist)
 
     deadline = _calc_slot_deadline(active_slot, slots)
     logging.debug(
@@ -181,25 +188,15 @@ def _calc_slot_deadline(active_slot, all_slots):
         )
 
     # --- Time slot: calculate own end time ---
-    if not active_slot.is_overnight:
-        slot_end = now.replace(
-            hour=active_slot.time_to.hour,
-            minute=active_slot.time_to.minute,
-            second=0, microsecond=0,
-        )
-    elif current_time >= active_slot.time_from:
-        tomorrow = now + timedelta(days=1)
-        slot_end = tomorrow.replace(
-            hour=active_slot.time_to.hour,
-            minute=active_slot.time_to.minute,
-            second=0, microsecond=0,
-        )
+    if active_slot.is_overnight and current_time >= active_slot.time_from:
+        base = now + timedelta(days=1)
     else:
-        slot_end = now.replace(
-            hour=active_slot.time_to.hour,
-            minute=active_slot.time_to.minute,
-            second=0, microsecond=0,
-        )
+        base = now
+    slot_end = base.replace(
+        hour=active_slot.time_to.hour,
+        minute=active_slot.time_to.minute,
+        second=0, microsecond=0,
+    )
 
     # Also check for upcoming events that should interrupt this time slot.
     # Without this, the viewer would sleep until the time slot ends and
