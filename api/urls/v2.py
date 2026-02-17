@@ -14,6 +14,9 @@ from api.views.v2 import (
     AssetsControlViewV2,
     AssetViewV2,
     BackupViewV2,
+    CecStandbyViewV2,
+    CecStatusViewV2,
+    CecWakeViewV2,
     DeviceSettingsViewV2,
     FileAssetViewV2,
     InfoViewV2,
@@ -85,6 +88,22 @@ def get_url_patterns():
             'v2/viewlog',
             ViewLogViewV2.as_view(),
             name='viewlog_v2',
+        ),
+        # CEC TV control
+        path(
+            'v2/cec/status',
+            CecStatusViewV2.as_view(),
+            name='cec_status_v2',
+        ),
+        path(
+            'v2/cec/standby',
+            CecStandbyViewV2.as_view(),
+            name='cec_standby_v2',
+        ),
+        path(
+            'v2/cec/wake',
+            CecWakeViewV2.as_view(),
+            name='cec_wake_v2',
         ),
         # Schedule slots
         path(

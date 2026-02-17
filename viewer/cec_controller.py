@@ -42,9 +42,13 @@ class CecController:
 
         logging.warning('CEC: no working device found, TV control disabled')
 
+    def get_status(self):
+        """Return CEC availability and TV power state."""
+        return {'cec_available': self._available, 'tv_on': self._tv_is_on}
+
     def standby(self):
-        """Send TV to standby. No-op if already off or CEC unavailable."""
-        if not self._available or not self._tv_is_on:
+        """Send TV to standby. No-op if CEC unavailable."""
+        if not self._available:
             return
         try:
             subprocess.run(
@@ -57,8 +61,8 @@ class CecController:
             logging.warning('CEC: standby failed: %s', e)
 
     def wake(self):
-        """Wake TV up. No-op if already on or CEC unavailable."""
-        if not self._available or self._tv_is_on:
+        """Wake TV up. No-op if CEC unavailable."""
+        if not self._available:
             return
         try:
             subprocess.run(

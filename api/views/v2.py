@@ -875,6 +875,54 @@ class UpdateViewV2(APIView):
             )
 
 
+# ── CEC TV control ──
+
+_cec_instance = None
+
+
+def _get_cec():
+    global _cec_instance
+    if _cec_instance is None:
+        import importlib.util
+        _app_root = path.dirname(path.dirname(path.dirname(path.abspath(__file__))))
+        spec = importlib.util.spec_from_file_location(
+            'cec_controller',
+            path.join(_app_root, 'viewer', 'cec_controller.py'),
+        )
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        _cec_instance = mod.CecController()
+    return _cec_instance
+
+
+class CecStatusViewV2(APIView):
+    """GET /api/v2/cec/status — CEC availability and TV power state."""
+
+    @authorized
+    def get(self, request):
+        return Response(_get_cec().get_status())
+
+
+class CecStandbyViewV2(APIView):
+    """POST /api/v2/cec/standby — Send TV to standby via HDMI-CEC."""
+
+    @authorized
+    def post(self, request):
+        cec = _get_cec()
+        cec.standby()
+        return Response(cec.get_status())
+
+
+class CecWakeViewV2(APIView):
+    """POST /api/v2/cec/wake — Wake TV via HDMI-CEC."""
+
+    @authorized
+    def post(self, request):
+        cec = _get_cec()
+        cec.wake()
+        return Response(cec.get_status())
+
+
 class ViewLogViewV2(APIView):
     """GET /api/v2/viewlog — playback history from viewlog.db."""
 
