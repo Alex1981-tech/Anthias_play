@@ -38,6 +38,16 @@ trap '' 16
 # Disable swapping
 echo 0 >  /sys/fs/cgroup/memory/memory.swappiness
 
+# Wait for /dev/fb0 (may not exist yet if container started before kernel created it)
+for i in $(seq 1 30); do
+  [ -e /dev/fb0 ] && break
+  echo "Waiting for /dev/fb0... ($i/30)"
+  sleep 2
+done
+if [ ! -e /dev/fb0 ]; then
+  echo "ERROR: /dev/fb0 not found after 60s, viewer may not display"
+fi
+
 # Start viewer
 sudo -E -u viewer dbus-run-session python -m viewer &
 
