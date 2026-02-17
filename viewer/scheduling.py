@@ -17,6 +17,13 @@ def _secure_shuffle(lst):
     _sysrandom.shuffle(lst)
 
 
+def _set_time(dt, t, second=0):
+    """Replace time components on a datetime, zeroing microseconds."""
+    return dt.replace(
+        hour=t.hour, minute=t.minute, second=second, microsecond=0,
+    )
+
+
 def get_specific_asset(asset_id):
     logging.info('Getting specific asset')
     try:
@@ -180,23 +187,14 @@ def _calc_slot_deadline(active_slot, all_slots):
 
     # Event slots: end at their computed time_to (includes seconds)
     if getattr(active_slot, 'slot_type', 'time') == 'event':
-        return now.replace(
-            hour=active_slot.time_to.hour,
-            minute=active_slot.time_to.minute,
-            second=active_slot.time_to.second,
-            microsecond=0,
-        )
+        return _set_time(now, active_slot.time_to, active_slot.time_to.second)
 
     # --- Time slot: calculate own end time ---
     if active_slot.is_overnight and current_time >= active_slot.time_from:
         base = now + timedelta(days=1)
     else:
         base = now
-    slot_end = base.replace(
-        hour=active_slot.time_to.hour,
-        minute=active_slot.time_to.minute,
-        second=0, microsecond=0,
-    )
+    slot_end = _set_time(base, active_slot.time_to)
 
     # Also check for upcoming events that should interrupt this time slot.
     # Without this, the viewer would sleep until the time slot ends and
@@ -223,14 +221,12 @@ def _calc_next_slot_start(non_default_slots):
 
         # One-time event (empty days, has start_date): use start_date directly
         if not days and getattr(slot, 'start_date', None):
-            candidate = now.replace(
+            base = now.replace(
                 year=slot.start_date.year,
                 month=slot.start_date.month,
                 day=slot.start_date.day,
-                hour=slot.time_from.hour,
-                minute=slot.time_from.minute,
-                second=0, microsecond=0,
             )
+            candidate = _set_time(base, slot.time_from)
             if candidate > now:
                 candidates.append(candidate)
             continue
@@ -240,11 +236,7 @@ def _calc_next_slot_start(non_default_slots):
             check_weekday = check_date.isoweekday()
             if days and check_weekday not in days:
                 continue
-            candidate = check_date.replace(
-                hour=slot.time_from.hour,
-                minute=slot.time_from.minute,
-                second=0, microsecond=0,
-            )
+            candidate = _set_time(check_date, slot.time_from)
             if candidate > now:
                 candidates.append(candidate)
                 break  # found nearest day for this slot
