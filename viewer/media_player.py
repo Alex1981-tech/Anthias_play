@@ -137,7 +137,7 @@ class MediaPlayerProxy:
     @classmethod
     def get_instance(cls):
         if cls.INSTANCE is None:
-            if get_device_type() in ['pi1', 'pi2', 'pi3', 'pi4']:
+            if get_device_type() in ['pi1', 'pi2', 'pi3', 'pi4', 'pi5']:
                 cls.INSTANCE = VLCMediaPlayer()
             else:
                 cls.INSTANCE = FFMPEGMediaPlayer()
