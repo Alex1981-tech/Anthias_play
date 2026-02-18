@@ -1,6 +1,7 @@
 from __future__ import unicode_literals
 
 import logging
+import os
 import subprocess
 
 import vlc
@@ -58,14 +59,13 @@ class FFMPEGMediaPlayer(MediaPlayer):
 
 
 def _detect_hdmi_audio_device():
-    """Auto-detect connected HDMI audio device on Pi4.
+    """Auto-detect connected HDMI audio device on Pi4/Pi5.
 
-    Pi4 has two HDMI ports:
+    Pi4/Pi5 have two HDMI ports:
       - HDMI-A-1 = card 1 = vc4hdmi0
       - HDMI-A-2 = card 2 = vc4hdmi1
     Uses sysdefault:CARD=vc4hdmiN (not default:CARD=... which is broken).
     """
-    import os
     for port, card_name in [('card1-HDMI-A-1', 'vc4hdmi0'), ('card1-HDMI-A-2', 'vc4hdmi1')]:
         status_path = f'/sys/class/drm/{port}/status'
         try:
@@ -81,6 +81,65 @@ def _detect_hdmi_audio_device():
     return 'sysdefault:CARD=vc4hdmi0'
 
 
+class DRMMediaPlayer(MediaPlayer):
+    """Video player for Pi5 using ffplay with KMS/DRM output.
+
+    VLC 3.0 on arm64 cannot decode H.264 to framebuffer properly.
+    ffplay with SDL2 kmsdrm backend works well on Pi5.
+    """
+
+    def __init__(self):
+        MediaPlayer.__init__(self)
+        self.process = None
+        self.uri = None
+
+    def _get_audio_device(self):
+        settings.load()
+        if settings['audio_output'] == 'local':
+            return 'sysdefault:CARD=vc4hdmi0'
+        else:
+            return _detect_hdmi_audio_device()
+
+    def set_asset(self, uri, duration):
+        self.uri = uri
+
+    def play(self):
+        audio_dev = self._get_audio_device()
+        logging.info('DRMMediaPlayer: playing %s (audio: %s)', self.uri, audio_dev)
+
+        env = os.environ.copy()
+        env['SDL_VIDEODRIVER'] = 'kmsdrm'
+        env['SDL_AUDIODRIVER'] = 'alsa'
+        env['AUDIODEV'] = audio_dev
+
+        self.process = subprocess.Popen(
+            [
+                'ffplay',
+                '-autoexit',
+                '-fs',
+                '-nostats',
+                '-loglevel', 'warning',
+                self.uri,
+            ],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            env=env,
+        )
+
+    def stop(self):
+        try:
+            if self.process:
+                self.process.terminate()
+                self.process = None
+        except Exception as e:
+            logging.error(f'Exception in stop(): {e}')
+
+    def is_playing(self):
+        if self.process:
+            return self.process.poll() is None
+        return False
+
+
 class VLCMediaPlayer(MediaPlayer):
     def __init__(self):
         MediaPlayer.__init__(self)
@@ -93,12 +152,9 @@ class VLCMediaPlayer(MediaPlayer):
 
     def get_alsa_audio_device(self):
         if settings['audio_output'] == 'local':
-            if get_device_type() == 'pi5':
-                return 'sysdefault:CARD=vc4hdmi0'
-
             return 'plughw:CARD=Headphones'
         else:
-            if get_device_type() in ['pi4', 'pi5']:
+            if get_device_type() in ['pi4']:
                 return _detect_hdmi_audio_device()
             elif get_device_type() in ['pi1', 'pi2', 'pi3']:
                 return 'sysdefault:CARD=vc4hdmi'
@@ -106,9 +162,12 @@ class VLCMediaPlayer(MediaPlayer):
                 return 'sysdefault:CARD=HID'
 
     def __get_options(self):
-        return [
+        opts = [
             f'--alsa-audio-device={self.get_alsa_audio_device()}',
         ]
+        if get_device_type() == 'pi4':
+            opts.extend(['--vout=fb', '--no-fb-tty'])
+        return opts
 
     def set_asset(self, uri, duration):
         self.player.set_mrl(uri)
@@ -137,7 +196,9 @@ class MediaPlayerProxy:
     @classmethod
     def get_instance(cls):
         if cls.INSTANCE is None:
-            if get_device_type() in ['pi1', 'pi2', 'pi3', 'pi4', 'pi5']:
+            if get_device_type() == 'pi5':
+                cls.INSTANCE = DRMMediaPlayer()
+            elif get_device_type() in ['pi1', 'pi2', 'pi3', 'pi4']:
                 cls.INSTANCE = VLCMediaPlayer()
             else:
                 cls.INSTANCE = FFMPEGMediaPlayer()
