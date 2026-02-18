@@ -80,8 +80,7 @@ RUN apt-get update && \
         vlc && \
     rm -rf /var/lib/apt/lists/*
 
-RUN pip3 install --upgrade pip --break-system-packages && \
-    pip3 install wheel --break-system-packages
+RUN pip3 install wheel --break-system-packages
 
 COPY requirements/requirements.viewer.txt /tmp/requirements.txt
 RUN pip3 install -r /tmp/requirements.txt --break-system-packages
