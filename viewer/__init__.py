@@ -5,6 +5,7 @@ from __future__ import unicode_literals
 import json
 import logging
 import sys
+import threading
 from builtins import range
 from os import getenv, path
 from signal import SIGALRM, signal
@@ -256,15 +257,33 @@ def _is_cctv_url(uri):
     return '/cctv/' in uri
 
 
+def _parse_cctv_url(uri):
+    """Extract base_url and config_id from CCTV URL.
+
+    Input:  http://FM:9000/cctv/<config_id>/
+    Returns: (base_url, config_id) or (None, None)
+    """
+    parts = uri.rstrip('/').split('/cctv/')
+    if len(parts) != 2:
+        return None, None
+    return parts[0], parts[1].rstrip('/')
+
+
+def _get_cctv_hls_url(uri):
+    """Get HLS stream URL from CCTV page URL."""
+    base_url, config_id = _parse_cctv_url(uri)
+    if not base_url:
+        return None
+    return f'{base_url}/media/cctv/{config_id}/stream.m3u8'
+
+
 def _request_cctv_start(uri):
-    """Ask FM to start CCTV stream before showing. Returns True if ready."""
+    """Ask FM to start CCTV stream. Returns True when HLS stream is ready."""
     import requests as req
     try:
-        parts = uri.rstrip('/').split('/cctv/')
-        if len(parts) != 2:
+        base_url, config_id = _parse_cctv_url(uri)
+        if not base_url:
             return False
-        base_url = parts[0]
-        config_id = parts[1].rstrip('/')
         resp = req.post(
             f'{base_url}/api/cctv/{config_id}/request-start/',
             timeout=10,
@@ -274,19 +293,37 @@ def _request_cctv_start(uri):
                 'CCTV request-start returned %s', resp.status_code
             )
             return False
-        snapshot_url = f'{base_url}/media/cctv/{config_id}/snapshot.jpg'
-        for _ in range(10):
+        # Wait for HLS stream to be ready (m3u8 file)
+        hls_url = f'{base_url}/media/cctv/{config_id}/stream.m3u8'
+        for _ in range(15):
             sleep(1)
             try:
-                r = req.head(snapshot_url, timeout=3)
+                r = req.head(hls_url, timeout=3)
                 if r.status_code == 200:
+                    logging.info('CCTV HLS stream ready: %s', config_id)
                     return True
             except Exception:
                 pass
+        logging.warning('CCTV HLS stream not ready after 15s, proceeding anyway')
         return True  # proceed anyway after timeout
     except Exception:
         logging.warning('CCTV request-start failed for %s', uri, exc_info=True)
         return False
+
+
+def _cctv_keepalive(uri, stop_event):
+    """Send keepalive pings to FM every 60s while CCTV is playing."""
+    import requests as req
+    base_url, config_id = _parse_cctv_url(uri)
+    if not base_url:
+        return
+    api_url = f'{base_url}/api/cctv/{config_id}/request-start/'
+    while not stop_event.wait(timeout=60):
+        try:
+            req.post(api_url, timeout=5)
+            logging.debug('CCTV keepalive sent for %s', config_id)
+        except Exception:
+            logging.warning('CCTV keepalive failed for %s', config_id)
 
 
 def asset_loop(scheduler, cec=None):
@@ -326,6 +363,23 @@ def asset_loop(scheduler, cec=None):
                     skip_event = get_skip_event()
                     skip_event.clear()
                     skip_event.wait(timeout=0.5)
+                    return
+                # Play HLS stream directly via VLC/ffplay
+                hls_url = _get_cctv_hls_url(uri)
+                if hls_url:
+                    logging.info('Playing CCTV HLS stream: %s', hls_url)
+                    keepalive_stop = threading.Event()
+                    keepalive_thread = threading.Thread(
+                        target=_cctv_keepalive,
+                        args=(uri, keepalive_stop),
+                        daemon=True,
+                    )
+                    keepalive_thread.start()
+                    try:
+                        view_video(hls_url, asset['duration'])
+                    finally:
+                        keepalive_stop.set()
+                        keepalive_thread.join(timeout=5)
                     return
             view_webpage(uri)
         elif 'video' or 'streaming' in mime:
