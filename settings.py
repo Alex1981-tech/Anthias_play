@@ -43,6 +43,9 @@ DEFAULTS = {
         'default_assets': False,
         'display_power_schedule': '',
         'language': 'en',
+        'ir_enabled': False,
+        'ir_protocol': '',
+        'ir_power_scancode': '',
     },
 }
 CONFIGURABLE_SETTINGS = DEFAULTS['viewer'].copy()

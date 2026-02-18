@@ -89,6 +89,9 @@ class DeviceSettingsSerializerV2(Serializer):
     username = CharField()
     display_power_schedule = CharField(required=False, allow_blank=True, default='')
     language = CharField()
+    ir_enabled = BooleanField()
+    ir_protocol = CharField(required=False, allow_blank=True, default='')
+    ir_power_scancode = CharField(required=False, allow_blank=True, default='')
 
 
 class UpdateDeviceSettingsSerializerV2(Serializer):
@@ -116,6 +119,9 @@ class UpdateDeviceSettingsSerializerV2(Serializer):
     )
     current_password = CharField(required=False, allow_blank=True)
     language = CharField(required=False)
+    ir_enabled = BooleanField(required=False)
+    ir_protocol = CharField(required=False, allow_blank=True)
+    ir_power_scancode = CharField(required=False, allow_blank=True)
 
 
 class IntegrationsSerializerV2(Serializer):

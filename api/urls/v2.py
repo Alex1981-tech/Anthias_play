@@ -21,6 +21,8 @@ from api.views.v2 import (
     FileAssetViewV2,
     InfoViewV2,
     IntegrationsViewV2,
+    IrStatusViewV2,
+    IrTestViewV2,
     PlaylistOrderViewV2,
     RebootViewV2,
     RecoverViewV2,
@@ -104,6 +106,17 @@ def get_url_patterns():
             'v2/cec/wake',
             CecWakeViewV2.as_view(),
             name='cec_wake_v2',
+        ),
+        # IR remote control
+        path(
+            'v2/ir/status',
+            IrStatusViewV2.as_view(),
+            name='ir_status_v2',
+        ),
+        path(
+            'v2/ir/test',
+            IrTestViewV2.as_view(),
+            name='ir_test_v2',
         ),
         # Schedule slots
         path(

@@ -29,14 +29,18 @@ class CecController:
     All methods are silent no-ops if CEC is unavailable.
     Re-checks periodically if CEC was not found at startup (e.g. TV was
     powered off after an outage and turned on later with remote).
+
+    Accepts an optional ``ir_controller`` for IR fallback wake when CEC
+    is unavailable (e.g. after power loss, TV doesn't init CEC bus).
     """
 
-    def __init__(self):
+    def __init__(self, ir_controller=None):
         self._device = None
         self._available = False
         self._tv_is_on = True  # assume TV is on at start
         self._last_detect_time = 0
         self._cec_ctl_missing = False  # set True if cec-ctl binary not found
+        self._ir = ir_controller
         self._detect_with_retry()
 
     # -- detection --------------------------------------------------------
@@ -135,8 +139,9 @@ class CecController:
             logging.warning('CEC: standby failed: %s', e)
 
     def wake(self):
-        """Wake TV up. No-op if CEC unavailable."""
+        """Wake TV up. Falls back to IR if CEC unavailable."""
         if not self._ensure_available():
+            self._ir_fallback_wake()
             return
         try:
             subprocess.run(
@@ -147,6 +152,44 @@ class CecController:
             logging.info('CEC: TV wake sent')
         except Exception as e:
             logging.warning('CEC: wake failed: %s', e)
+            self._ir_fallback_wake()
+
+    def _ir_settings_valid(self):
+        """Check that IR fallback is enabled and configured in settings."""
+        try:
+            from settings import settings
+            settings.load()
+            return (
+                settings.get('ir_enabled')
+                and settings.get('ir_protocol')
+                and settings.get('ir_power_scancode')
+            )
+        except Exception:
+            return False
+
+    def _ir_fallback_wake(self):
+        """Attempt to wake TV via IR when CEC is unavailable."""
+        if not self._ir or not self._ir_settings_valid():
+            return
+
+        try:
+            from settings import settings
+            protocol = settings.get('ir_protocol', '')
+            scancode = settings.get('ir_power_scancode', '')
+            logging.info('CEC: unavailable, trying IR fallback (%s:%s)', protocol, scancode)
+            sent = self._ir.send_power(protocol, scancode)
+            if sent:
+                logging.info('IR fallback: power code sent, waiting 8s for TV to start...')
+                time.sleep(8)
+                # Retry CEC detection — TV may have initialised the bus
+                self._detect_device()
+                if self._available:
+                    logging.info('IR fallback: CEC now available after IR wake')
+                    self._tv_is_on = True
+                else:
+                    logging.info('IR fallback: CEC still unavailable after IR wake')
+        except Exception as e:
+            logging.warning('IR fallback: failed: %s', e)
 
     def set_volume(self, level=None, mute=False):
         """Set TV volume via CEC. Silent no-op if CEC unavailable.

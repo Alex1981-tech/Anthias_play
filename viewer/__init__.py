@@ -28,6 +28,7 @@ from viewer.constants import (
     STANDBY_SCREEN,
 )
 from viewer.cec_controller import CecController
+from viewer.ir_controller import IrController
 from viewer.media_player import MediaPlayerProxy
 from viewer.playback import navigate_to_asset, play_loop, skip_asset, stop_loop
 from viewer.utils import (
@@ -394,7 +395,8 @@ def wait_for_node_ip(seconds):
 def start_loop():
     global loop_is_stopped
 
-    cec = CecController()
+    ir = IrController()
+    cec = CecController(ir_controller=ir)
     logging.debug('Entering infinite loop.')
     while True:
         if loop_is_stopped:

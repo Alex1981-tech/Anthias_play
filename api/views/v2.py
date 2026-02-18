@@ -238,6 +238,9 @@ class DeviceSettingsViewV2(APIView):
                 ),
                 'display_power_schedule': display_schedule,
                 'language': settings.get('language', 'en'),
+                'ir_enabled': settings.get('ir_enabled', False),
+                'ir_protocol': settings.get('ir_protocol', ''),
+                'ir_power_scancode': settings.get('ir_power_scancode', ''),
             }
         )
 
@@ -373,6 +376,12 @@ class DeviceSettingsViewV2(APIView):
                 settings['resolution'] = data['resolution']
             if 'language' in data:
                 settings['language'] = data['language']
+            if 'ir_enabled' in data:
+                settings['ir_enabled'] = data['ir_enabled']
+            if 'ir_protocol' in data:
+                settings['ir_protocol'] = data['ir_protocol']
+            if 'ir_power_scancode' in data:
+                settings['ir_power_scancode'] = data['ir_power_scancode']
 
             # Handle display_power_schedule from raw request data
             # (may arrive as dict or JSON string)
@@ -921,6 +930,56 @@ class CecWakeViewV2(APIView):
         cec = _get_cec()
         cec.wake()
         return Response(cec.get_status())
+
+
+# ── IR remote control ──
+
+_ir_instance = None
+
+
+def _get_ir():
+    global _ir_instance
+    if _ir_instance is None:
+        import importlib.util
+        _app_root = path.dirname(path.dirname(path.dirname(path.abspath(__file__))))
+        spec = importlib.util.spec_from_file_location(
+            'ir_controller',
+            path.join(_app_root, 'viewer', 'ir_controller.py'),
+        )
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        _ir_instance = mod.IrController()
+    return _ir_instance
+
+
+class IrStatusViewV2(APIView):
+    """GET /api/v2/ir/status — IR hardware availability."""
+
+    @authorized
+    def get(self, request):
+        return Response(_get_ir().get_status())
+
+
+class IrTestViewV2(APIView):
+    """POST /api/v2/ir/test — Send a test IR power code."""
+
+    @authorized
+    def post(self, request):
+        protocol = request.data.get('protocol', '')
+        scancode = request.data.get('scancode', '')
+        if not protocol or not scancode:
+            return Response(
+                {'error': 'protocol and scancode are required'},
+                status=400,
+            )
+        ir = _get_ir()
+        if not ir.get_status()['ir_available']:
+            return Response(
+                {'success': False, 'error': 'No TX-capable IR device found'},
+                status=400,
+            )
+        sent = ir.send_power(protocol, scancode)
+        return Response({'success': sent})
 
 
 class ViewLogViewV2(APIView):
