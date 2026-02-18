@@ -47,11 +47,11 @@ RUN apt-get update && \
         libdbus-1-dev \
         libdbus-glib-1-dev \
         libdrm-dev \
-        libegl1-mesa-dev \
+        libegl-dev \
         libffi-dev \
         libgbm-dev \
-        libgles2-mesa \
-        libgles2-mesa-dev \
+        libgles2 \
+        libgles-dev \
         libinput-dev \
         libnss3 \
         libpq-dev \
