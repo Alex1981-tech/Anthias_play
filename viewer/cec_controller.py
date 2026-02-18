@@ -109,8 +109,9 @@ class CecController:
     # -- volume state -----------------------------------------------------
 
     # CEC has no reliable "get volume" command for most TVs, so we track
-    # assumed volume internally.  None = unknown → requires calibration.
-    _assumed_volume = None  # 0–100 or None
+    # assumed volume internally.  Starts at 0 — we assume TV is at
+    # minimum volume when viewer boots (Pi controls the TV exclusively).
+    _assumed_volume = 0  # 0–100
     _assumed_mute = False
 
     # Delay between consecutive volume key presses (seconds).
@@ -205,22 +206,19 @@ class CecController:
         if mute and not self._assumed_mute:
             self._send_mute_toggle()
             self._assumed_mute = True
+            self._assumed_volume = 0  # muted = effectively 0
             logging.info('CEC: muted TV')
         elif not mute and self._assumed_mute:
             self._send_mute_toggle()
             self._assumed_mute = False
+            # After unmute, volume resets to 0 from TV perspective
+            # (we set it to 0 on mute, so it stays 0)
             logging.info('CEC: unmuted TV')
 
         if level is None:
             return
 
         level = max(0, min(100, int(level)))
-
-        # If we don't know current volume, calibrate first
-        if self._assumed_volume is None:
-            logging.info('CEC: volume unknown, calibrating (reset to 0)...')
-            self._reset_volume_to_zero()
-            self._assumed_volume = 0
 
         delta = level - self._assumed_volume
         if delta == 0:
@@ -237,8 +235,8 @@ class CecController:
             self._assumed_volume = level
         except Exception as e:
             logging.warning('CEC: volume change failed: %s', e)
-            # Lost tracking — next call will recalibrate
-            self._assumed_volume = None
+            # Lost tracking — assume 0 (safest default)
+            self._assumed_volume = 0
 
     # -- volume internals -------------------------------------------------
 
@@ -248,7 +246,7 @@ class CecController:
             subprocess.run(
                 [
                     'cec-ctl', '-d', self._device, '--to', '0',
-                    '--user-control-pressed', 'mute',
+                    '--user-control-pressed', 'ui-cmd=mute',
                 ],
                 capture_output=True, timeout=5,
             )
@@ -274,7 +272,7 @@ class CecController:
         parts = []
         for _ in range(steps):
             parts.append(
-                'cec-ctl -d {dev} --to 0 --user-control-pressed {key} && '
+                'cec-ctl -d {dev} --to 0 --user-control-pressed ui-cmd={key} && '
                 'cec-ctl -d {dev} --to 0 --user-control-released'.format(
                     dev=self._device, key=key,
                 )
@@ -289,10 +287,3 @@ class CecController:
             capture_output=True, timeout=timeout,
         )
 
-    def _reset_volume_to_zero(self):
-        """Press volume-down 100 times to guarantee volume is at 0.
-
-        This is the calibration step — only happens once (or after CEC error).
-        Takes ~15 seconds.
-        """
-        self._volume_steps('down', 100)
