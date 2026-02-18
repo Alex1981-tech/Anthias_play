@@ -202,18 +202,18 @@ class CecController:
         if not self._ensure_available():
             return
 
-        # Handle mute toggle
-        if mute and not self._assumed_mute:
-            self._send_mute_toggle()
-            self._assumed_mute = True
-            self._assumed_volume = 0  # muted = effectively 0
-            logging.info('CEC: muted TV')
-        elif not mute and self._assumed_mute:
-            self._send_mute_toggle()
+        if mute:
+            # Instead of mute toggle — 100 steps down (guaranteed 0)
+            if self._assumed_volume > 0 or not self._assumed_mute:
+                logging.info('CEC: mute → 100 steps down (was %d)', self._assumed_volume)
+                self._volume_steps('down', 100)
+                self._assumed_volume = 0
+                self._assumed_mute = True
+            return
+
+        # Unmute: already at 0 — just clear the flag
+        if self._assumed_mute:
             self._assumed_mute = False
-            # After unmute, volume resets to 0 from TV perspective
-            # (we set it to 0 on mute, so it stays 0)
-            logging.info('CEC: unmuted TV')
 
         if level is None:
             return
@@ -235,30 +235,9 @@ class CecController:
             self._assumed_volume = level
         except Exception as e:
             logging.warning('CEC: volume change failed: %s', e)
-            # Lost tracking — assume 0 (safest default)
             self._assumed_volume = 0
 
     # -- volume internals -------------------------------------------------
-
-    def _send_mute_toggle(self):
-        """Send a single mute toggle (CEC User Control: Mute)."""
-        try:
-            subprocess.run(
-                [
-                    'cec-ctl', '-d', self._device, '--to', '0',
-                    '--user-control-pressed', 'ui-cmd=mute',
-                ],
-                capture_output=True, timeout=5,
-            )
-            subprocess.run(
-                [
-                    'cec-ctl', '-d', self._device, '--to', '0',
-                    '--user-control-released',
-                ],
-                capture_output=True, timeout=5,
-            )
-        except Exception as e:
-            logging.warning('CEC: mute toggle failed: %s', e)
 
     def _volume_steps(self, direction, steps):
         """Send N volume-up or volume-down key presses.
