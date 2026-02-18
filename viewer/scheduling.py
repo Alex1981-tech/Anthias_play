@@ -33,7 +33,7 @@ def get_specific_asset(asset_id):
         return None
 
 
-def _asset_to_dict(asset, duration_override=None):
+def _asset_to_dict(asset, duration_override=None, volume=None, mute=False):
     """Convert an Asset instance to the dict format expected by the viewer."""
     d = {
         k: v for k, v in asset.__dict__.items()
@@ -41,6 +41,8 @@ def _asset_to_dict(asset, duration_override=None):
     }
     if duration_override is not None:
         d['duration'] = duration_override
+    d['volume'] = volume
+    d['mute'] = mute
     return d
 
 
@@ -159,7 +161,9 @@ def _generate_schedule_playlist(slots, skip_event_id=None):
         asset = item.asset
         if not asset.is_enabled:
             continue
-        playlist.append(_asset_to_dict(asset, item.duration_override))
+        playlist.append(_asset_to_dict(
+            asset, item.duration_override, item.volume, item.mute,
+        ))
 
     # Never shuffle event slots (strict order matters)
     if not no_loop and settings['shuffle_playlist']:

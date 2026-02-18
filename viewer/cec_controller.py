@@ -102,6 +102,17 @@ class CecController:
             logging.info('CEC: device now available (TV was turned on)')
         return self._available
 
+    # -- volume state -----------------------------------------------------
+
+    # CEC has no reliable "get volume" command for most TVs, so we track
+    # assumed volume internally.  None = unknown → requires calibration.
+    _assumed_volume = None  # 0–100 or None
+    _assumed_mute = False
+
+    # Delay between consecutive volume key presses (seconds).
+    # 0.15s works for Samsung/LG; conservative enough for most TVs.
+    _STEP_DELAY = 0.15
+
     # -- public API -------------------------------------------------------
 
     def get_status(self):
@@ -136,3 +147,109 @@ class CecController:
             logging.info('CEC: TV wake sent')
         except Exception as e:
             logging.warning('CEC: wake failed: %s', e)
+
+    def set_volume(self, level=None, mute=False):
+        """Set TV volume via CEC. Silent no-op if CEC unavailable.
+
+        Args:
+            level: 0–100 integer or None (don't change volume).
+            mute: True to mute TV audio.
+        """
+        if not self._ensure_available():
+            return
+
+        # Handle mute toggle
+        if mute and not self._assumed_mute:
+            self._send_mute_toggle()
+            self._assumed_mute = True
+            logging.info('CEC: muted TV')
+        elif not mute and self._assumed_mute:
+            self._send_mute_toggle()
+            self._assumed_mute = False
+            logging.info('CEC: unmuted TV')
+
+        if level is None:
+            return
+
+        level = max(0, min(100, int(level)))
+
+        # If we don't know current volume, calibrate first
+        if self._assumed_volume is None:
+            logging.info('CEC: volume unknown, calibrating (reset to 0)...')
+            self._reset_volume_to_zero()
+            self._assumed_volume = 0
+
+        delta = level - self._assumed_volume
+        if delta == 0:
+            return
+
+        direction = 'up' if delta > 0 else 'down'
+        steps = abs(delta)
+        logging.info(
+            'CEC: volume %d → %d (%s %d steps)',
+            self._assumed_volume, level, direction, steps,
+        )
+        try:
+            self._volume_steps(direction, steps)
+            self._assumed_volume = level
+        except Exception as e:
+            logging.warning('CEC: volume change failed: %s', e)
+            # Lost tracking — next call will recalibrate
+            self._assumed_volume = None
+
+    # -- volume internals -------------------------------------------------
+
+    def _send_mute_toggle(self):
+        """Send a single mute toggle (CEC User Control: Mute)."""
+        try:
+            subprocess.run(
+                [
+                    'cec-ctl', '-d', self._device, '--to', '0',
+                    '--user-control-pressed', 'mute',
+                ],
+                capture_output=True, timeout=5,
+            )
+            subprocess.run(
+                [
+                    'cec-ctl', '-d', self._device, '--to', '0',
+                    '--user-control-released',
+                ],
+                capture_output=True, timeout=5,
+            )
+        except Exception as e:
+            logging.warning('CEC: mute toggle failed: %s', e)
+
+    def _volume_steps(self, direction, steps):
+        """Send N volume-up or volume-down key presses.
+
+        Uses a single shell command with chained cec-ctl calls to minimize
+        subprocess overhead.  Each step is press + release with a short delay.
+        """
+        key = 'volume-up' if direction == 'up' else 'volume-down'
+
+        # Build a single shell command: (press; release; sleep) × steps
+        parts = []
+        for _ in range(steps):
+            parts.append(
+                'cec-ctl -d {dev} --to 0 --user-control-pressed {key} && '
+                'cec-ctl -d {dev} --to 0 --user-control-released'.format(
+                    dev=self._device, key=key,
+                )
+            )
+
+        cmd = ' && sleep {delay} && '.format(delay=self._STEP_DELAY).join(parts)
+
+        # Generous timeout: steps × 0.3s + 10s buffer
+        timeout = steps * 0.3 + 10
+        subprocess.run(
+            ['sh', '-c', cmd],
+            capture_output=True, timeout=timeout,
+        )
+
+    def _reset_volume_to_zero(self):
+        """Press volume-down 100 times to guarantee volume is at 0.
+
+        This is the calibration step — only happens once (or after CEC error).
+        Takes ~15 seconds.
+        """
+        self._volume_steps('down', 100)

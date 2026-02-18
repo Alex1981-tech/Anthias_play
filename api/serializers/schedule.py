@@ -24,6 +24,8 @@ class ScheduleSlotItemSerializer(serializers.ModelSerializer):
             'asset_id',
             'sort_order',
             'duration_override',
+            'volume',
+            'mute',
             'asset_name',
             'asset_uri',
             'asset_mimetype',
@@ -229,6 +231,11 @@ class CreateScheduleSlotItemSerializer(serializers.Serializer):
     duration_override = serializers.IntegerField(
         required=False, default=None, allow_null=True,
     )
+    volume = serializers.IntegerField(
+        required=False, default=None, allow_null=True,
+        min_value=0, max_value=100,
+    )
+    mute = serializers.BooleanField(required=False, default=False)
 
 
 class ReorderSlotItemsSerializer(serializers.Serializer):

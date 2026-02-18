@@ -226,6 +226,15 @@ class ScheduleSlotItem(models.Model):
         null=True,
         help_text='If set, overrides the asset duration for this slot.',
     )
+    volume = models.IntegerField(
+        blank=True,
+        null=True,
+        help_text='TV volume 0-100 via CEC. Null = don\'t change.',
+    )
+    mute = models.BooleanField(
+        default=False,
+        help_text='Mute TV audio via CEC.',
+    )
 
     class Meta:
         db_table = 'schedule_slot_items'

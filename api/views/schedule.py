@@ -173,6 +173,8 @@ class ScheduleSlotItemListView(APIView):
             asset=asset,
             sort_order=sort_order,
             duration_override=serializer.validated_data.get('duration_override'),
+            volume=serializer.validated_data.get('volume'),
+            mute=serializer.validated_data.get('mute', False),
         )
         _recalculate_event_time_to(slot)
         return Response(
@@ -206,6 +208,14 @@ class ScheduleSlotItemDetailView(APIView):
         if 'duration_override' in request.data:
             val = request.data['duration_override']
             item.duration_override = int(val) if val is not None else None
+        if 'volume' in request.data:
+            val = request.data['volume']
+            if val is not None:
+                val = int(val)
+                val = max(0, min(100, val))
+            item.volume = val
+        if 'mute' in request.data:
+            item.mute = bool(request.data['mute'])
 
         item.save()
         _recalculate_event_time_to(item.slot)

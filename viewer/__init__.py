@@ -303,6 +303,7 @@ def asset_loop(scheduler, cec=None):
     # Content available — ensure TV is on
     if cec:
         cec.wake()
+        cec.set_volume(asset.get('volume'), asset.get('mute', False))
 
     if path.isfile(asset['uri']) or (
         not url_fails(asset['uri']) or asset['skip_asset_check']
