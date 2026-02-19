@@ -11,3 +11,4 @@ SPLASH_PAGE_URL = f'http://{LISTEN}:{PORT}/splash-page'
 MAX_BALENA_IP_RETRIES = 90
 BALENA_IP_RETRY_DELAY = 1
 SERVER_WAIT_TIMEOUT = 60
+SCHEDULE_CHECK_INTERVAL = 30  # secs — periodic schedule re-check during playback

@@ -23,6 +23,7 @@ from viewer.constants import (
     BALENA_IP_RETRY_DELAY,
     EMPTY_PL_DELAY,
     MAX_BALENA_IP_RETRIES,
+    SCHEDULE_CHECK_INTERVAL,
     SERVER_WAIT_TIMEOUT,
     SPLASH_DELAY,
     SPLASH_PAGE_URL,
@@ -189,7 +190,7 @@ def view_image(uri):
         logging.info(browser.process.stdout)
 
 
-def view_video(uri, duration):
+def view_video(uri, duration, scheduler=None):
     logging.debug('Displaying video %s for %s ', uri, duration)
     media_player = MediaPlayerProxy.get_instance()
 
@@ -202,17 +203,27 @@ def view_video(uri, duration):
         skip_event = get_skip_event()
         skip_event.clear()
         remaining = int(duration)
+        infinite = (remaining == 0)
         poll_interval = 2  # check ffplay every 2 seconds
-        while remaining > 0:
-            wait_time = min(poll_interval, remaining)
+        elapsed_since_check = 0
+        while infinite or remaining > 0:
+            wait_time = min(poll_interval, remaining) if not infinite else poll_interval
             if skip_event.wait(timeout=wait_time):
                 logging.info('Skip detected during video playback, stopping video')
                 media_player.stop()
                 return
-            remaining -= wait_time
+            if not infinite:
+                remaining -= wait_time
             if not media_player.is_playing():
                 logging.warning('Video playback ended (process exited), moving on')
                 break
+            # Periodic schedule re-check (catches new slots added mid-playback)
+            elapsed_since_check += wait_time
+            if scheduler and elapsed_since_check >= SCHEDULE_CHECK_INTERVAL:
+                elapsed_since_check = 0
+                if scheduler.should_refresh():
+                    logging.info('Schedule changed during video, interrupting')
+                    break
     except sh.ErrorReturnCode_1:
         logging.info(
             'Resource URI is not correct, remote host is not responding or '
@@ -383,28 +394,40 @@ def asset_loop(scheduler, cec=None):
                     )
                     keepalive_thread.start()
                     try:
-                        view_video(hls_url, asset['duration'])
+                        view_video(hls_url, asset['duration'], scheduler)
                     finally:
                         keepalive_stop.set()
                         keepalive_thread.join(timeout=5)
                     return
             view_webpage(uri)
         elif 'video' or 'streaming' in mime:
-            view_video(uri, asset['duration'])
+            view_video(uri, asset['duration'], scheduler)
         else:
             logging.error('Unknown MimeType %s', mime)
 
         if 'image' in mime or 'web' in mime:
             duration = int(asset['duration'])
-            logging.info('Sleeping for %s', duration)
+            infinite = (duration == 0)
+            if infinite:
+                logging.info('Infinite duration — playing until schedule change')
+            else:
+                logging.info('Sleeping for %s', duration)
             skip_event = get_skip_event()
             skip_event.clear()
-            if skip_event.wait(timeout=duration):
-                # Skip was triggered, continue immediately to next iteration
-                logging.info('Skip detected, moving to next asset immediately')
-            else:
-                # Duration elapsed normally, continue to next asset
-                pass
+            remaining = duration if not infinite else None
+            while True:
+                wait_time = min(SCHEDULE_CHECK_INTERVAL, remaining) if remaining else SCHEDULE_CHECK_INTERVAL
+                if skip_event.wait(timeout=wait_time):
+                    logging.info('Skip detected, moving to next asset immediately')
+                    break
+                if remaining is not None:
+                    remaining -= wait_time
+                    if remaining <= 0:
+                        break  # duration elapsed
+                # Periodic schedule re-check
+                if scheduler.should_refresh():
+                    logging.info('Schedule changed during playback, moving on')
+                    break
 
     else:
         logging.info(

@@ -415,6 +415,18 @@ class Scheduler(object):
         )
         self._start_deadline_timer()
 
+    def should_refresh(self):
+        """Check if schedule changed without performing full update.
+
+        Called periodically during long/infinite playback to detect
+        new slots added via API (DB mtime change) or passed deadlines.
+        """
+        if self.get_db_mtime() > self.last_update_db_mtime:
+            return True
+        if self.deadline and self.deadline <= timezone.now():
+            return True
+        return False
+
     def get_db_mtime(self):
         # get database file last modification time
         try:
