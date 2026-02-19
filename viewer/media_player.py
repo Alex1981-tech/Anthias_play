@@ -130,6 +130,11 @@ class DRMMediaPlayer(MediaPlayer):
         try:
             if self.process:
                 self.process.terminate()
+                try:
+                    self.process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    self.process.kill()
+                    self.process.wait(timeout=2)
                 self.process = None
         except Exception as e:
             logging.error(f'Exception in stop(): {e}')
