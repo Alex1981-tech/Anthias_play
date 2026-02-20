@@ -296,7 +296,12 @@ def _get_cctv_hls_url(uri):
 
 
 def _request_cctv_start(uri):
-    """Ask FM to start CCTV stream. Returns True when HLS stream is ready."""
+    """Ask FM to start CCTV stream. Returns 'hls', 'grid', or False.
+
+    'hls' — root stream.m3u8 available (mosaic/rotation), play via ffplay.
+    'grid' — grid mode (per-camera streams), open webpage in WebEngine.
+    False — stream unavailable.
+    """
     import requests as req
     try:
         base_url, config_id = _parse_cctv_url(uri)
@@ -319,11 +324,20 @@ def _request_cctv_start(uri):
                 r = req.head(hls_url, timeout=3)
                 if r.status_code == 200:
                     logging.info('CCTV HLS stream ready: %s', config_id)
-                    return True
+                    return 'hls'
             except Exception:
                 pass
-        logging.warning('CCTV HLS stream not ready after 15s, proceeding anyway')
-        return True  # proceed anyway after timeout
+        # Root stream.m3u8 not found — check if grid mode (per-camera streams)
+        try:
+            cam0_url = f'{base_url}/media/cctv/{config_id}/cam_0/stream.m3u8'
+            r = req.head(cam0_url, timeout=3)
+            if r.status_code == 200:
+                logging.info('CCTV grid mode detected: %s', config_id)
+                return 'grid'
+        except Exception:
+            pass
+        logging.warning('CCTV stream not ready after 15s (no HLS or grid), skipping')
+        return False
     except Exception:
         logging.warning('CCTV request-start failed for %s', uri, exc_info=True)
         return False
@@ -374,15 +388,32 @@ def asset_loop(scheduler, cec=None):
             view_image(uri)
         elif 'web' in mime:
             if _is_cctv_url(uri):
-                if not _request_cctv_start(uri):
+                cctv_mode = _request_cctv_start(uri)
+                if not cctv_mode:
                     logging.info(
-                        'CCTV stream %s unavailable, skipping', name
+                        'CCTV stream %s unavailable, waiting 30s before retry', name
                     )
                     skip_event = get_skip_event()
                     skip_event.clear()
-                    skip_event.wait(timeout=0.5)
+                    skip_event.wait(timeout=30)
                     return
-                # Play HLS stream directly via VLC/ffplay
+                if cctv_mode == 'grid':
+                    # Grid mode — open CCTV page in WebEngine (hls.js handles per-camera streams)
+                    logging.info('CCTV grid mode: opening webpage %s', uri)
+                    keepalive_stop = threading.Event()
+                    keepalive_thread = threading.Thread(
+                        target=_cctv_keepalive,
+                        args=(uri, keepalive_stop),
+                        daemon=True,
+                    )
+                    keepalive_thread.start()
+                    try:
+                        view_webpage(uri)
+                    finally:
+                        keepalive_stop.set()
+                        keepalive_thread.join(timeout=5)
+                    return
+                # HLS mode — play single stream directly via ffplay
                 hls_url = _get_cctv_hls_url(uri)
                 if hls_url:
                     logging.info('Playing CCTV HLS stream: %s', hls_url)
