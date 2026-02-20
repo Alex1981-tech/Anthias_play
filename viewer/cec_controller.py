@@ -203,10 +203,14 @@ class CecController:
             return
 
         if mute:
-            # Instead of mute toggle — 100 steps down (guaranteed 0)
+            # Instead of mute toggle — steps down from assumed volume (max 30)
             if self._assumed_volume > 0 or not self._assumed_mute:
-                logging.info('CEC: mute → 100 steps down (was %d)', self._assumed_volume)
-                self._volume_steps('down', 100)
+                steps = min(max(self._assumed_volume, 30), 30)
+                logging.info('CEC: mute → %d steps down (was %d)', steps, self._assumed_volume)
+                try:
+                    self._volume_steps('down', steps)
+                except Exception as e:
+                    logging.warning('CEC: mute volume-down failed: %s', e)
                 self._assumed_volume = 0
                 self._assumed_mute = True
             return

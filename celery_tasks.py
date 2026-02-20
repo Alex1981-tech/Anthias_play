@@ -151,6 +151,19 @@ def enforce_display_schedule():
             return  # No change needed
 
         result = diagnostics.set_display_power(desired_on)
+        if not result:
+            # CEC failed — try IR fallback
+            ir_enabled = app_settings.get('ir_enabled', False)
+            ir_protocol = app_settings.get('ir_protocol', '')
+            ir_scancode = app_settings.get('ir_power_scancode', '')
+            if ir_enabled and ir_protocol and ir_scancode:
+                from viewer.ir_controller import IrController
+                ir = IrController()
+                if ir._available:
+                    sent = ir.send_power(ir_protocol, ir_scancode)
+                    if sent:
+                        result = True
+                        logging.info('Display schedule: IR fallback sent %s:%s', ir_protocol, ir_scancode)
         if result:
             r.set('display_schedule_desired', desired_str, ex=120)
             logging.info(
